@@ -33,7 +33,15 @@ app.innerHTML = `
           <dt>Earth flux</dt>
           <dd><span id="earth-flux">100</span>% of 1 AU</dd>
         </div>
+        <div>
+          <dt>Camera focus</dt>
+          <dd><span id="focus-label">Sun</span></dd>
+        </div>
       </dl>
+      <label class="select-row" for="focus-control">
+        <span>Focus</span>
+        <select id="focus-control"></select>
+      </label>
       <label class="control-row" for="speed-control">
         <span>Speed</span>
         <input id="speed-control" type="range" min="1" max="90" value="${DEFAULT_DAYS_PER_SECOND}" />
@@ -107,21 +115,42 @@ scene.add(sun.group);
 const solarSystem = createSolarSystemComposite();
 scene.add(solarSystem.group);
 
+const focusOptions = ['Sun', ...solarSystem.getPlanetNames()];
+
 const timer = new THREE.Timer();
 timer.connect(document);
 const speedControl = document.querySelector<HTMLInputElement>('#speed-control');
+const focusControl = document.querySelector<HTMLSelectElement>('#focus-control');
 const timeScaleLabel = document.querySelector<HTMLSpanElement>('#time-scale');
 const earthFluxLabel = document.querySelector<HTMLSpanElement>('#earth-flux');
-if (!speedControl || !timeScaleLabel || !earthFluxLabel) {
+const focusLabel = document.querySelector<HTMLSpanElement>('#focus-label');
+if (!speedControl || !focusControl || !timeScaleLabel || !earthFluxLabel || !focusLabel) {
   throw new Error('Missing simulation control elements');
 }
 let simulatedDays = 0;
 let daysPerSecond = DEFAULT_DAYS_PER_SECOND;
+let focusName = 'Sun';
+
+focusControl.innerHTML = focusOptions
+  .map((name) => `<option value="${name}">${name}</option>`)
+  .join('');
 
 speedControl.addEventListener('input', (event: Event) => {
   const target = event.target as HTMLInputElement;
   daysPerSecond = Number(target.value);
   timeScaleLabel.textContent = daysPerSecond.toString();
+});
+
+focusControl.addEventListener('change', () => {
+  const previousFocus = getFocusPosition(focusName);
+  const nextFocusName = focusControl.value;
+  const nextFocus = getFocusPosition(nextFocusName);
+  const cameraOffset = camera.position.clone().sub(previousFocus);
+
+  focusName = nextFocusName;
+  focusLabel.textContent = focusName;
+  camera.position.copy(nextFocus).add(cameraOffset);
+  controls.target.copy(nextFocus);
 });
 
 window.addEventListener('resize', resizeRenderer);
@@ -136,8 +165,10 @@ renderer.setAnimationLoop((timestamp: number) => {
   const illumination = solarSystem.updateIllumination(sun.position);
   const earthSolarFlux = illumination.get('Earth') ?? 1;
   earthFluxLabel.textContent = Math.round(earthSolarFlux * 100).toString();
+  const focusPosition = getFocusPosition(focusName);
 
   starField.rotation.y += deltaSeconds * 0.006;
+  controls.target.copy(focusPosition);
   lattice.fitToCamera(camera, sun.position);
   lattice.update([
     {
@@ -154,6 +185,14 @@ renderer.setAnimationLoop((timestamp: number) => {
   controls.update();
   renderer.render(scene, camera);
 });
+
+function getFocusPosition(name: string): THREE.Vector3 {
+  if (name === 'Sun') {
+    return sun.position.clone();
+  }
+
+  return solarSystem.findPlanet(name).position.clone();
+}
 
 function resizeRenderer(): void {
   camera.aspect = window.innerWidth / window.innerHeight;

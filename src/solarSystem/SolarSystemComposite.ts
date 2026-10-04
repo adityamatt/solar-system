@@ -50,6 +50,10 @@ export class SolarSystemComposite {
 
     return planet;
   }
+
+  getPlanetNames(): string[] {
+    return this.children.map((planet) => planet.name);
+  }
 }
 
 export function createSolarSystemComposite(): SolarSystemComposite {

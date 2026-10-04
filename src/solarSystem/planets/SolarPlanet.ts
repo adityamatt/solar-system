@@ -70,7 +70,7 @@ export class SolarPlanet extends Planet implements PlanetContract {
   }
 
   getMassSources(): MassSource[] {
-    return [this.getMassSource()];
+    return [this.getMassSource(), ...this.moonSystem.getMassSources()];
   }
 }
 

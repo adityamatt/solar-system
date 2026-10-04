@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { BODIES } from '../constants';
+import { MinorMoonSwarm } from '../moons/MinorMoonSwarm';
+import { Moon } from '../moons/Moon';
 import { SolarPlanet } from './SolarPlanet';
 
 export class Saturn extends SolarPlanet {
@@ -15,6 +17,104 @@ export class Saturn extends SolarPlanet {
     });
 
     this.axis.add(createRings(BODIES.saturn.radius));
+    this.addMoon(
+      new Moon({
+        name: 'Mimas',
+        parentName: 'Saturn',
+        radius: 0.08,
+        orbitRadius: 4.4,
+        orbitalPeriodDays: 0.942,
+        color: 0xbeb7aa,
+      }),
+    );
+    this.addMoon(
+      new Moon({
+        name: 'Enceladus',
+        parentName: 'Saturn',
+        radius: 0.11,
+        orbitRadius: 5.3,
+        orbitalPeriodDays: 1.37,
+        color: 0xe4e8e6,
+        initialAngle: 0.5,
+      }),
+    );
+    this.addMoon(
+      new Moon({
+        name: 'Tethys',
+        parentName: 'Saturn',
+        radius: 0.13,
+        orbitRadius: 6.2,
+        orbitalPeriodDays: 1.888,
+        color: 0xc9c3b8,
+        initialAngle: 1.1,
+      }),
+    );
+    this.addMoon(
+      new Moon({
+        name: 'Dione',
+        parentName: 'Saturn',
+        radius: 0.14,
+        orbitRadius: 7.25,
+        orbitalPeriodDays: 2.737,
+        color: 0xc7c2b7,
+        initialAngle: 1.8,
+      }),
+    );
+    this.addMoon(
+      new Moon({
+        name: 'Rhea',
+        parentName: 'Saturn',
+        radius: 0.18,
+        orbitRadius: 8.5,
+        orbitalPeriodDays: 4.518,
+        color: 0xbfb8aa,
+        initialAngle: 2.6,
+      }),
+    );
+    this.addMoon(
+      new Moon({
+        name: 'Titan',
+        parentName: 'Saturn',
+        radius: 0.29,
+        orbitRadius: 10.5,
+        orbitalPeriodDays: 15.945,
+        color: 0xd29b4b,
+        initialAngle: 3.25,
+        compactness: 0.11,
+      }),
+    );
+    this.addMoon(
+      new Moon({
+        name: 'Iapetus',
+        parentName: 'Saturn',
+        radius: 0.18,
+        orbitRadius: 13.4,
+        orbitalPeriodDays: 79.33,
+        color: 0x9a8b78,
+        initialAngle: 4.3,
+      }),
+    );
+    this.addMoon(
+      new Moon({
+        name: 'Phoebe',
+        parentName: 'Saturn',
+        radius: 0.065,
+        orbitRadius: 17,
+        orbitalPeriodDays: 550.5,
+        color: 0x6d665f,
+        initialAngle: 5.1,
+      }),
+    );
+    this.addMoon(
+      new MinorMoonSwarm({
+        parentName: 'Saturn',
+        count: 285,
+        innerRadius: 18.5,
+        outerRadius: 34,
+        color: 0xc9b894,
+        seed: 606,
+      }),
+    );
   }
 }
 

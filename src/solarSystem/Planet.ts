@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import { CelestialBody, CelestialComposite } from './CelestialBody';
+import type { MoonContract } from './MoonInterface';
 
 const FULL_TURN = Math.PI * 2;
 
@@ -14,20 +16,17 @@ interface PlanetOptions {
   receivesSunlight?: boolean;
 }
 
-export class Planet {
-  name: string;
-  radius: number;
+export class Planet extends CelestialBody {
   orbitRadius: number;
   orbitalPeriodDays: number;
   rotationPeriodDays: number;
   initialAngle: number;
   receivesSunlight: boolean;
-  group: THREE.Group;
   orbitPivot: THREE.Group;
   orbitOffset: THREE.Group;
   axis: THREE.Group;
   mesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>;
-  position: THREE.Vector3;
+  protected readonly moonSystem: CelestialComposite;
 
   constructor({
     name,
@@ -40,15 +39,13 @@ export class Planet {
     material,
     receivesSunlight = false,
   }: PlanetOptions) {
-    this.name = name;
-    this.radius = radius;
+    super(name, radius);
     this.orbitRadius = orbitRadius;
     this.orbitalPeriodDays = orbitalPeriodDays;
     this.rotationPeriodDays = rotationPeriodDays;
     this.initialAngle = initialAngle;
     this.receivesSunlight = receivesSunlight;
 
-    this.group = new THREE.Group();
     this.group.name = `${name} system`;
 
     this.orbitPivot = new THREE.Group();
@@ -68,8 +65,13 @@ export class Planet {
     this.mesh.userData.baseEmissive = material.emissive.clone();
     this.axis.add(this.mesh);
 
-    this.position = new THREE.Vector3();
+    this.moonSystem = new CelestialComposite(`${name} moons`);
+    this.orbitOffset.add(this.moonSystem.group);
     this.update(0);
+  }
+
+  addMoon(moon: MoonContract): void {
+    this.moonSystem.add(moon);
   }
 
   update(simulatedDays: number): void {
@@ -82,6 +84,7 @@ export class Planet {
       this.mesh.rotation.y = (simulatedDays / this.rotationPeriodDays) * FULL_TURN;
     }
 
+    this.moonSystem.update(simulatedDays);
     this.mesh.getWorldPosition(this.position);
   }
 

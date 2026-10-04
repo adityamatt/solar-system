@@ -24,7 +24,8 @@ body,
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -103,7 +104,8 @@ dd {
   font-weight: 650;
 }
 
-.control-row {
+.control-row,
+.select-row {
   display: grid;
   grid-template-columns: 54px 1fr;
   align-items: center;
@@ -112,9 +114,23 @@ dd {
   font-size: 0.86rem;
 }
 
+.select-row {
+  margin-bottom: 12px;
+}
+
 input[type="range"] {
   width: 100%;
   accent-color: #8dd7ff;
+}
+
+select {
+  width: 100%;
+  min-width: 0;
+  color: #f8fbff;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 7px 9px;
 }
 
 @media (max-width: 720px) {

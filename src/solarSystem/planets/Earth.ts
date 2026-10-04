@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Planet } from '../Planet';
 import type { MassSource, PlanetContract } from '../PlanetInterface';
 import { BODIES } from '../constants';
+import { Moon } from '../moons/Moon';
 import { createOrbitRing } from './SolarPlanet';
 
 export class Earth extends Planet implements PlanetContract {
@@ -19,6 +20,17 @@ export class Earth extends Planet implements PlanetContract {
     });
 
     this.group.add(createOrbitRing(BODIES.earth.orbitRadius, 0x7ab8ff));
+    this.addMoon(
+      new Moon({
+        name: 'Moon',
+        parentName: 'Earth',
+        radius: 0.18,
+        orbitRadius: 2.9,
+        orbitalPeriodDays: 27.32,
+        color: 0xb9b7ad,
+        compactness: 0.08,
+      }),
+    );
   }
 
   updateIllumination(sunPosition: THREE.Vector3): number {
@@ -37,7 +49,7 @@ export class Earth extends Planet implements PlanetContract {
   }
 
   getMassSources(): MassSource[] {
-    return [this.getMassSource()];
+    return [this.getMassSource(), ...this.moonSystem.getMassSources()];
   }
 }
 
