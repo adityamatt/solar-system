@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 
-export function createCoordinateFrame({ size = 18 } = {}) {
+interface CoordinateFrameOptions {
+  size?: number;
+}
+
+export function createCoordinateFrame({ size = 18 }: CoordinateFrameOptions = {}): THREE.Group {
   const group = new THREE.Group();
   group.name = '3D coordinate frame';
 
@@ -29,11 +33,14 @@ export function createCoordinateFrame({ size = 18 } = {}) {
   return group;
 }
 
-function createAxisLabel(text, color) {
+function createAxisLabel(text: string, color: number): THREE.Sprite {
   const canvas = document.createElement('canvas');
   canvas.width = 96;
   canvas.height = 96;
   const context = canvas.getContext('2d');
+  if (!context) {
+    throw new Error('Could not create 2D context for axis label');
+  }
 
   context.clearRect(0, 0, canvas.width, canvas.height);
   context.fillStyle = '#050914';

@@ -1,12 +1,17 @@
 import './style.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-import { createCoordinateFrame } from './solarSystem/CoordinateFrame.js';
-import { Planet } from './solarSystem/Planet.js';
-import { SpacetimeLattice } from './solarSystem/SpacetimeLattice.js';
-import { BODIES, DEFAULT_DAYS_PER_SECOND } from './solarSystem/constants.js';
+import { createCoordinateFrame } from './solarSystem/CoordinateFrame';
+import { Planet } from './solarSystem/Planet';
+import { assertPlanetInterface } from './solarSystem/PlanetInterface';
+import { SpacetimeLattice } from './solarSystem/SpacetimeLattice';
+import { BODIES, DEFAULT_DAYS_PER_SECOND } from './solarSystem/constants';
+import { Earth } from './solarSystem/planets/Earth';
 
-const app = document.querySelector('#app');
+const app = document.querySelector<HTMLDivElement>('#app');
+if (!app) {
+  throw new Error('Missing #app root element');
+}
 
 app.innerHTML = `
   <main class="simulation-shell">
@@ -25,6 +30,10 @@ app.innerHTML = `
           <dt>Earth orbit</dt>
           <dd>365.25 : 1 day spin</dd>
         </div>
+        <div>
+          <dt>Earth flux</dt>
+          <dd><span id="earth-flux">100</span>% of 1 AU</dd>
+        </div>
       </dl>
       <label class="control-row" for="speed-control">
         <span>Speed</span>
@@ -34,7 +43,10 @@ app.innerHTML = `
   </main>
 `;
 
-const canvas = document.querySelector('#solar-canvas');
+const canvas = document.querySelector<HTMLCanvasElement>('#solar-canvas');
+if (!canvas) {
+  throw new Error('Missing #solar-canvas element');
+}
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -59,7 +71,7 @@ controls.target.set(0, 0, 0);
 const ambientLight = new THREE.AmbientLight(0x667799, 0.35);
 scene.add(ambientLight);
 
-const solarLight = new THREE.PointLight(0xffd6a0, 4.5, 85, 1.3);
+const solarLight = new THREE.PointLight(0xffd6a0, 110, 0, 2);
 scene.add(solarLight);
 
 const starField = createStarField();
@@ -99,38 +111,37 @@ sun.group.add(sunGlow);
 const sunMarker = createSunMarker();
 sun.group.add(sunMarker);
 
-const earth = new Planet({
-  ...BODIES.earth,
-  material: new THREE.MeshStandardMaterial({
-    map: createEarthTexture(),
-    roughness: 0.7,
-    metalness: 0,
-  }),
-});
-earth.group.add(createOrbitRing(BODIES.earth.orbitRadius, 0x7ab8ff));
+const earth = assertPlanetInterface(new Earth(), 'Earth');
 scene.add(earth.group);
 
 const timer = new THREE.Timer();
 timer.connect(document);
-const speedControl = document.querySelector('#speed-control');
-const timeScaleLabel = document.querySelector('#time-scale');
+const speedControl = document.querySelector<HTMLInputElement>('#speed-control');
+const timeScaleLabel = document.querySelector<HTMLSpanElement>('#time-scale');
+const earthFluxLabel = document.querySelector<HTMLSpanElement>('#earth-flux');
+if (!speedControl || !timeScaleLabel || !earthFluxLabel) {
+  throw new Error('Missing simulation control elements');
+}
 let simulatedDays = 0;
 let daysPerSecond = DEFAULT_DAYS_PER_SECOND;
 
-speedControl.addEventListener('input', (event) => {
-  daysPerSecond = Number(event.target.value);
+speedControl.addEventListener('input', (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  daysPerSecond = Number(target.value);
   timeScaleLabel.textContent = daysPerSecond.toString();
 });
 
 window.addEventListener('resize', resizeRenderer);
 
-renderer.setAnimationLoop((timestamp) => {
+renderer.setAnimationLoop((timestamp: number) => {
   timer.update(timestamp);
   const deltaSeconds = Math.min(timer.getDelta(), 0.05);
   simulatedDays += deltaSeconds * daysPerSecond;
 
   sun.update(simulatedDays);
   earth.update(simulatedDays);
+  const earthSolarFlux = earth.updateIllumination(sun.position);
+  earthFluxLabel.textContent = Math.round(earthSolarFlux * 100).toString();
 
   starField.rotation.y += deltaSeconds * 0.006;
   updateSunReadability(camera, sun, sunGlow, sunMarker);
@@ -144,40 +155,20 @@ renderer.setAnimationLoop((timestamp) => {
       maxContraction: 0.46,
       flow: 0.03,
     },
-    {
-      position: earth.position,
-      compactness: 1.05,
-      radius: BODIES.earth.radius,
-      softening: 0.9,
-      maxContraction: 0.22,
-      flow: 0.08,
-    },
+    earth.getMassSource(),
   ], timer.getElapsed());
 
   controls.update();
   renderer.render(scene, camera);
 });
 
-function resizeRenderer() {
+function resizeRenderer(): void {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-function createOrbitRing(radius, color) {
-  const curve = new THREE.EllipseCurve(0, 0, radius, radius, 0, Math.PI * 2, false, 0);
-  const points = curve.getPoints(240).map((point) => new THREE.Vector3(point.x, 0, point.y));
-  const geometry = new THREE.BufferGeometry().setFromPoints(points);
-  const material = new THREE.LineBasicMaterial({
-    color,
-    transparent: true,
-    opacity: 0.45,
-  });
-
-  return new THREE.LineLoop(geometry, material);
-}
-
-function createStarField() {
+function createStarField(): THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial> {
   const starCount = 1300;
   const positions = new Float32Array(starCount * 3);
 
@@ -206,7 +197,7 @@ function createStarField() {
   );
 }
 
-function createSunGlow(radius) {
+function createSunGlow(radius: number): THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial> {
   const geometry = new THREE.SphereGeometry(radius * 1.45, 48, 48);
   const material = new THREE.MeshBasicMaterial({
     color: 0xff9d42,
@@ -220,12 +211,15 @@ function createSunGlow(radius) {
   return new THREE.Mesh(geometry, material);
 }
 
-function createSunMarker() {
+function createSunMarker(): THREE.Sprite {
   const size = 128;
   const markerCanvas = document.createElement('canvas');
   markerCanvas.width = size;
   markerCanvas.height = size;
   const ctx = markerCanvas.getContext('2d');
+  if (!ctx) {
+    throw new Error('Could not create 2D context for Sun marker');
+  }
   const gradient = ctx.createRadialGradient(64, 64, 2, 64, 64, 58);
   gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
   gradient.addColorStop(0.24, 'rgba(255, 232, 128, 0.95)');
@@ -253,7 +247,12 @@ function createSunMarker() {
   return marker;
 }
 
-function updateSunReadability(camera, sunBody, glow, marker) {
+function updateSunReadability(
+  camera: THREE.PerspectiveCamera,
+  sunBody: Planet,
+  glow: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>,
+  marker: THREE.Sprite,
+): void {
   sunBody.mesh.material.opacity = 1;
   sunBody.mesh.material.transparent = false;
 
@@ -272,76 +271,4 @@ function updateSunReadability(camera, sunBody, glow, marker) {
     0.24,
     THREE.MathUtils.smoothstep(distance, 18, 110),
   );
-}
-
-function createEarthTexture() {
-  const size = 512;
-  const canvasTexture = document.createElement('canvas');
-  canvasTexture.width = size;
-  canvasTexture.height = size / 2;
-  const ctx = canvasTexture.getContext('2d');
-
-  const ocean = ctx.createLinearGradient(0, 0, 0, canvasTexture.height);
-  ocean.addColorStop(0, '#10275d');
-  ocean.addColorStop(0.5, '#1f72a6');
-  ocean.addColorStop(1, '#0c315c');
-  ctx.fillStyle = ocean;
-  ctx.fillRect(0, 0, canvasTexture.width, canvasTexture.height);
-
-  drawLand(ctx, '#6ead73', [
-    [78, 74],
-    [134, 47],
-    [174, 72],
-    [158, 118],
-    [96, 130],
-  ]);
-  drawLand(ctx, '#4c8f6c', [
-    [248, 48],
-    [318, 56],
-    [355, 93],
-    [320, 137],
-    [266, 126],
-    [224, 92],
-  ]);
-  drawLand(ctx, '#b59d62', [
-    [368, 82],
-    [421, 50],
-    [480, 78],
-    [466, 128],
-    [408, 139],
-  ]);
-  drawLand(ctx, '#d7dbe1', [
-    [0, 0],
-    [512, 0],
-    [512, 18],
-    [0, 22],
-  ]);
-  drawLand(ctx, '#d7dbe1', [
-    [0, 238],
-    [512, 232],
-    [512, 256],
-    [0, 256],
-  ]);
-
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.42)';
-  ctx.lineWidth = 3;
-  for (let i = 0; i < 9; i += 1) {
-    ctx.beginPath();
-    ctx.moveTo(i * 62 - 45, 62 + Math.sin(i) * 22);
-    ctx.bezierCurveTo(i * 62, 28, i * 62 + 64, 108, i * 62 + 118, 70);
-    ctx.stroke();
-  }
-
-  const texture = new THREE.CanvasTexture(canvasTexture);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
-function drawLand(ctx, color, points) {
-  ctx.fillStyle = color;
-  ctx.beginPath();
-  ctx.moveTo(points[0][0], points[0][1]);
-  points.slice(1).forEach(([x, y]) => ctx.lineTo(x, y));
-  ctx.closePath();
-  ctx.fill();
 }

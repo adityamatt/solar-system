@@ -1,8 +1,36 @@
 import * as THREE from 'three';
+import type { MassSource } from './PlanetInterface';
 
-const AXES = ['x', 'y', 'z'];
+const AXES = ['x', 'y', 'z'] as const;
+type Axis = (typeof AXES)[number];
+
+interface SpacetimeLatticeOptions {
+  size?: number;
+  divisions?: number;
+  samples?: number;
+  minSize?: number;
+  maxSize?: number;
+  targetCellSize?: number;
+  maxDivisions?: number;
+  color?: THREE.ColorRepresentation;
+  opacity?: number;
+}
 
 export class SpacetimeLattice {
+  size: number;
+  divisions: number;
+  samples: number;
+  minSize: number;
+  maxSize: number;
+  targetCellSize: number;
+  maxDivisions: number;
+  basePositions: THREE.Vector3[][];
+  lineColors: Float32Array[];
+  group: THREE.Group;
+  baseColor: THREE.Color;
+  strainColor: THREE.Color;
+  material: THREE.LineBasicMaterial;
+
   constructor({
     size = 36,
     divisions = 12,
@@ -13,7 +41,7 @@ export class SpacetimeLattice {
     maxDivisions = 18,
     color = 0x74d7ff,
     opacity = 0.22,
-  }) {
+  }: SpacetimeLatticeOptions = {}) {
     this.size = size;
     this.divisions = divisions;
     this.samples = samples;
@@ -39,7 +67,7 @@ export class SpacetimeLattice {
     this.createVolumetricLines(this.material);
   }
 
-  fitToCamera(camera, center = new THREE.Vector3()) {
+  fitToCamera(camera: THREE.Camera, center = new THREE.Vector3()): void {
     const distanceFromCenter = camera.position.distanceTo(center);
     const targetSize = THREE.MathUtils.clamp(distanceFromCenter * 2.7, this.minSize, this.maxSize);
     const quantizedSize = Math.ceil(targetSize / this.targetCellSize) * this.targetCellSize;
@@ -58,9 +86,10 @@ export class SpacetimeLattice {
     this.rebuild();
   }
 
-  rebuild() {
+  rebuild(): void {
     this.group.children.forEach((line) => {
-      line.geometry.dispose();
+      const latticeLine = line as THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>;
+      latticeLine.geometry.dispose();
     });
     this.group.clear();
     this.basePositions = [];
@@ -68,7 +97,7 @@ export class SpacetimeLattice {
     this.createVolumetricLines(this.material);
   }
 
-  createVolumetricLines(material) {
+  createVolumetricLines(material: THREE.LineBasicMaterial): void {
     const half = this.size / 2;
     const step = this.size / this.divisions;
 
@@ -83,7 +112,12 @@ export class SpacetimeLattice {
     });
   }
 
-  addLine(material, axis, first, second) {
+  addLine(
+    material: THREE.LineBasicMaterial,
+    axis: Axis,
+    first: number,
+    second: number,
+  ): void {
     const half = this.size / 2;
     const points = [];
 
@@ -111,11 +145,12 @@ export class SpacetimeLattice {
     this.group.add(new THREE.Line(geometry, material));
   }
 
-  update(massSources, elapsedSeconds = 0) {
+  update(massSources: MassSource[], elapsedSeconds = 0): void {
     this.group.children.forEach((line, lineIndex) => {
+      const latticeLine = line as THREE.Line<THREE.BufferGeometry, THREE.LineBasicMaterial>;
       const baseLine = this.basePositions[lineIndex];
-      const positions = line.geometry.attributes.position;
-      const colors = line.geometry.attributes.color;
+      const positions = latticeLine.geometry.attributes.position as THREE.BufferAttribute;
+      const colors = latticeLine.geometry.attributes.color as THREE.BufferAttribute;
 
       baseLine.forEach((point, pointIndex) => {
         const warped = point.clone();
@@ -161,7 +196,7 @@ export class SpacetimeLattice {
 
       positions.needsUpdate = true;
       colors.needsUpdate = true;
-      line.geometry.computeBoundingSphere();
+      latticeLine.geometry.computeBoundingSphere();
     });
   }
 }

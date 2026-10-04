@@ -1,7 +1,17 @@
 export const AU = 12;
 export const DEFAULT_DAYS_PER_SECOND = 24;
 
-export const BODIES = {
+export interface BodyConfig {
+  name: string;
+  radius: number;
+  orbitRadius: number;
+  orbitalPeriodDays: number;
+  rotationPeriodDays: number;
+  axialTilt: number;
+  initialAngle: number;
+}
+
+export const BODIES: Record<'sun' | 'earth', BodyConfig> = {
   sun: {
     name: 'Sun',
     radius: 2.15,
