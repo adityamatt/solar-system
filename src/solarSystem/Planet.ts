@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CelestialBody, CelestialComposite } from './CelestialBody';
+import { markReceivesSunlight } from './IlluminationEngine';
 import type { MoonContract } from './MoonInterface';
 
 const FULL_TURN = Math.PI * 2;
@@ -63,6 +64,9 @@ export class Planet extends CelestialBody {
     this.mesh = new THREE.Mesh(geometry, material);
     this.mesh.name = name;
     this.mesh.userData.baseEmissive = material.emissive.clone();
+    if (receivesSunlight) {
+      markReceivesSunlight(this.mesh, name, material);
+    }
     this.axis.add(this.mesh);
 
     this.moonSystem = new CelestialComposite(`${name} moons`);
@@ -88,18 +92,7 @@ export class Planet extends CelestialBody {
     this.mesh.getWorldPosition(this.position);
   }
 
-  updateSunlight(sunPosition: THREE.Vector3, referenceDistance: number): number {
-    if (!this.receivesSunlight || !this.mesh.material) return 1;
-
-    const distance = Math.max(this.position.distanceTo(sunPosition), 0.001);
-    const solarFlux = (referenceDistance * referenceDistance) / (distance * distance);
-    const displayFlux = THREE.MathUtils.clamp(solarFlux, 0.08, 2.4);
-    const material = this.mesh.material;
-
-    material.emissive.copy(this.mesh.userData.baseEmissive).lerp(new THREE.Color(0x8fc8ff), 0.16);
-    material.emissiveIntensity = THREE.MathUtils.mapLinear(displayFlux, 0.08, 2.4, 0.015, 0.22);
-    material.needsUpdate = true;
-
-    return solarFlux;
+  updateSunlight(_sunPosition: THREE.Vector3, _referenceDistance: number): number {
+    return 1;
   }
 }

@@ -2,6 +2,7 @@ import './style.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { createCoordinateFrame } from './solarSystem/CoordinateFrame';
+import { IlluminationEngine } from './solarSystem/IlluminationEngine';
 import { Planet } from './solarSystem/Planet';
 import { createSolarSystemComposite } from './solarSystem/SolarSystemComposite';
 import { SpacetimeLattice } from './solarSystem/SpacetimeLattice';
@@ -114,6 +115,11 @@ scene.add(sun.group);
 
 const solarSystem = createSolarSystemComposite();
 scene.add(solarSystem.group);
+const illuminationEngine = new IlluminationEngine({
+  sunPosition: sun.position,
+  root: solarSystem.group,
+  referenceDistance: BODIES.earth.orbitRadius,
+});
 
 const focusOptions = ['Sun', ...solarSystem.getPlanetNames()];
 
@@ -162,7 +168,8 @@ renderer.setAnimationLoop((timestamp: number) => {
 
   sun.update(simulatedDays);
   solarSystem.update(simulatedDays);
-  const illumination = solarSystem.updateIllumination(sun.position);
+  solarLight.position.copy(sun.position);
+  const illumination = illuminationEngine.update();
   const earthSolarFlux = illumination.get('Earth') ?? 1;
   earthFluxLabel.textContent = Math.round(earthSolarFlux * 100).toString();
   const focusPosition = getFocusPosition(focusName);

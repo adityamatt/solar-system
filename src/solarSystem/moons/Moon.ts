@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CelestialBody } from '../CelestialBody';
+import { markReceivesSunlight } from '../IlluminationEngine';
 import type { MoonContract } from '../MoonInterface';
 import type { MassSource } from '../PlanetInterface';
 
@@ -52,6 +53,7 @@ export class Moon extends CelestialBody implements MoonContract {
     );
     this.mesh.position.x = orbitRadius;
     this.mesh.name = name;
+    markReceivesSunlight(this.mesh, name, this.mesh.material);
     this.orbitPivot.add(this.mesh);
     this.group.add(createMoonOrbitRing(orbitRadius));
     this.update(0);

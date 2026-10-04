@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { BODIES } from '../constants';
+import { markReceivesSunlight } from '../IlluminationEngine';
 import { MinorMoonSwarm } from '../moons/MinorMoonSwarm';
 import { Moon } from '../moons/Moon';
 import { SolarPlanet } from './SolarPlanet';
@@ -118,7 +119,7 @@ export class Saturn extends SolarPlanet {
   }
 }
 
-function createRings(planetRadius: number): THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial> {
+function createRings(planetRadius: number): THREE.Mesh<THREE.RingGeometry, THREE.MeshStandardMaterial> {
   const geometry = new THREE.RingGeometry(planetRadius * 1.35, planetRadius * 2.35, 160);
   const position = geometry.attributes.position as THREE.BufferAttribute;
   const uv = geometry.attributes.uv as THREE.BufferAttribute;
@@ -141,15 +142,19 @@ function createRings(planetRadius: number): THREE.Mesh<THREE.RingGeometry, THREE
 
   geometry.setAttribute('color', new THREE.BufferAttribute(color, 3));
 
-  const material = new THREE.MeshBasicMaterial({
+  const material = new THREE.MeshStandardMaterial({
     vertexColors: true,
     side: THREE.DoubleSide,
     transparent: true,
     opacity: 0.72,
     depthWrite: false,
+    roughness: 0.8,
+    emissive: 0x000000,
+    emissiveIntensity: 0.01,
   });
   const rings = new THREE.Mesh(geometry, material);
   rings.name = 'Saturn rings';
+  markReceivesSunlight(rings, 'Saturn rings', material);
   rings.rotation.x = THREE.MathUtils.degToRad(90);
   return rings;
 }

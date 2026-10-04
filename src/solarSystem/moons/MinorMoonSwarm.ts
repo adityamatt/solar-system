@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CelestialBody } from '../CelestialBody';
+import { markReceivesSunlight } from '../IlluminationEngine';
 import type { MoonContract } from '../MoonInterface';
 
 export interface MinorMoonSwarmOptions {
@@ -57,6 +58,7 @@ export class MinorMoonSwarm extends CelestialBody implements MoonContract {
         depthWrite: false,
       }),
     );
+    markReceivesSunlight(this.points, this.name, this.points.material);
     this.group.add(this.points);
     this.update(0);
   }
