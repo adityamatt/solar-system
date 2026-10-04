@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Planet } from '../Planet';
 import type { MassSource, PlanetContract } from '../PlanetInterface';
 import { BODIES } from '../constants';
+import { createOrbitRing } from './SolarPlanet';
 
 export class Earth extends Planet implements PlanetContract {
   constructor() {
@@ -34,19 +35,10 @@ export class Earth extends Planet implements PlanetContract {
       flow: 0.08,
     };
   }
-}
 
-function createOrbitRing(radius: number, color: THREE.ColorRepresentation): THREE.LineLoop {
-  const curve = new THREE.EllipseCurve(0, 0, radius, radius, 0, Math.PI * 2, false, 0);
-  const points = curve.getPoints(240).map((point) => new THREE.Vector3(point.x, 0, point.y));
-  const geometry = new THREE.BufferGeometry().setFromPoints(points);
-  const material = new THREE.LineBasicMaterial({
-    color,
-    transparent: true,
-    opacity: 0.45,
-  });
-
-  return new THREE.LineLoop(geometry, material);
+  getMassSources(): MassSource[] {
+    return [this.getMassSource()];
+  }
 }
 
 function createEarthTexture(): THREE.CanvasTexture {

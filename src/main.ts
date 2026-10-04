@@ -3,10 +3,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { createCoordinateFrame } from './solarSystem/CoordinateFrame';
 import { Planet } from './solarSystem/Planet';
-import { assertPlanetInterface } from './solarSystem/PlanetInterface';
+import { createSolarSystemComposite } from './solarSystem/SolarSystemComposite';
 import { SpacetimeLattice } from './solarSystem/SpacetimeLattice';
 import { BODIES, DEFAULT_DAYS_PER_SECOND } from './solarSystem/constants';
-import { Earth } from './solarSystem/planets/Earth';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) {
@@ -19,7 +18,7 @@ app.innerHTML = `
     <section class="hud" aria-label="Simulation controls">
       <div>
         <p class="eyebrow">Solar System / GR sketch</p>
-        <h1>Mass changes the metric: space contracts around Sun and Earth</h1>
+        <h1>Mass changes the metric: space contracts around the solar system</h1>
       </div>
       <dl class="metrics">
         <div>
@@ -56,16 +55,16 @@ renderer.toneMappingExposure = 1.2;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x02040a);
-scene.fog = new THREE.Fog(0x02040a, 35, 95);
+scene.fog = new THREE.Fog(0x02040a, 480, 1150);
 
-const camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.1, 220);
-camera.position.set(0, 13, 29);
+const camera = new THREE.PerspectiveCamera(52, window.innerWidth / window.innerHeight, 0.1, 1200);
+camera.position.set(0, 34, 76);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 controls.minDistance = 9;
-controls.maxDistance = 150;
+controls.maxDistance = 720;
 controls.target.set(0, 0, 0);
 
 const ambientLight = new THREE.AmbientLight(0x667799, 0.35);
@@ -84,10 +83,10 @@ const lattice = new SpacetimeLattice({
   size: 38,
   divisions: 10,
   samples: 90,
-  maxSize: 210,
-  targetCellSize: 3.8,
+  maxSize: 900,
+  targetCellSize: 8,
   color: 0x63d4ff,
-  opacity: 0.2,
+  opacity: 0.16,
 });
 scene.add(lattice.group);
 
@@ -105,14 +104,8 @@ const sun = new Planet({
 });
 scene.add(sun.group);
 
-const sunGlow = createSunGlow(BODIES.sun.radius);
-sun.group.add(sunGlow);
-
-const sunMarker = createSunMarker();
-sun.group.add(sunMarker);
-
-const earth = assertPlanetInterface(new Earth(), 'Earth');
-scene.add(earth.group);
+const solarSystem = createSolarSystemComposite();
+scene.add(solarSystem.group);
 
 const timer = new THREE.Timer();
 timer.connect(document);
@@ -139,12 +132,12 @@ renderer.setAnimationLoop((timestamp: number) => {
   simulatedDays += deltaSeconds * daysPerSecond;
 
   sun.update(simulatedDays);
-  earth.update(simulatedDays);
-  const earthSolarFlux = earth.updateIllumination(sun.position);
+  solarSystem.update(simulatedDays);
+  const illumination = solarSystem.updateIllumination(sun.position);
+  const earthSolarFlux = illumination.get('Earth') ?? 1;
   earthFluxLabel.textContent = Math.round(earthSolarFlux * 100).toString();
 
   starField.rotation.y += deltaSeconds * 0.006;
-  updateSunReadability(camera, sun, sunGlow, sunMarker);
   lattice.fitToCamera(camera, sun.position);
   lattice.update([
     {
@@ -155,7 +148,7 @@ renderer.setAnimationLoop((timestamp: number) => {
       maxContraction: 0.46,
       flow: 0.03,
     },
-    earth.getMassSource(),
+    ...solarSystem.getMassSources(),
   ], timer.getElapsed());
 
   controls.update();
@@ -173,7 +166,7 @@ function createStarField(): THREE.Points<THREE.BufferGeometry, THREE.PointsMater
   const positions = new Float32Array(starCount * 3);
 
   for (let i = 0; i < starCount; i += 1) {
-    const radius = THREE.MathUtils.randFloat(48, 105);
+    const radius = THREE.MathUtils.randFloat(420, 1000);
     const theta = THREE.MathUtils.randFloat(0, Math.PI * 2);
     const phi = Math.acos(THREE.MathUtils.randFloatSpread(2));
 
@@ -194,81 +187,5 @@ function createStarField(): THREE.Points<THREE.BufferGeometry, THREE.PointsMater
       opacity: 0.9,
       depthWrite: false,
     }),
-  );
-}
-
-function createSunGlow(radius: number): THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial> {
-  const geometry = new THREE.SphereGeometry(radius * 1.45, 48, 48);
-  const material = new THREE.MeshBasicMaterial({
-    color: 0xff9d42,
-    transparent: true,
-    opacity: 0.16,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-    fog: false,
-  });
-
-  return new THREE.Mesh(geometry, material);
-}
-
-function createSunMarker(): THREE.Sprite {
-  const size = 128;
-  const markerCanvas = document.createElement('canvas');
-  markerCanvas.width = size;
-  markerCanvas.height = size;
-  const ctx = markerCanvas.getContext('2d');
-  if (!ctx) {
-    throw new Error('Could not create 2D context for Sun marker');
-  }
-  const gradient = ctx.createRadialGradient(64, 64, 2, 64, 64, 58);
-  gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
-  gradient.addColorStop(0.24, 'rgba(255, 232, 128, 0.95)');
-  gradient.addColorStop(0.58, 'rgba(255, 151, 52, 0.34)');
-  gradient.addColorStop(1, 'rgba(255, 151, 52, 0)');
-
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, size, size);
-
-  const texture = new THREE.CanvasTexture(markerCanvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-
-  const marker = new THREE.Sprite(
-    new THREE.SpriteMaterial({
-      map: texture,
-      transparent: true,
-      opacity: 0,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      depthTest: false,
-      fog: false,
-    }),
-  );
-  marker.name = 'Sun distant visibility marker';
-  return marker;
-}
-
-function updateSunReadability(
-  camera: THREE.PerspectiveCamera,
-  sunBody: Planet,
-  glow: THREE.Mesh<THREE.SphereGeometry, THREE.MeshBasicMaterial>,
-  marker: THREE.Sprite,
-): void {
-  sunBody.mesh.material.opacity = 1;
-  sunBody.mesh.material.transparent = false;
-
-  const distance = camera.position.distanceTo(sunBody.position);
-  const visibleHeight = 2 * Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2) * distance;
-  const worldUnitsPerPixel = visibleHeight / window.innerHeight;
-  const sunDiameterPixels = (sunBody.radius * 2) / worldUnitsPerPixel;
-  const markerSize = THREE.MathUtils.clamp(worldUnitsPerPixel * 22, 0.9, 4.8);
-  const markerOpacity = THREE.MathUtils.smoothstep(18 - sunDiameterPixels, 0, 18) * 0.85;
-
-  marker.scale.setScalar(markerSize);
-  marker.material.opacity = markerOpacity;
-
-  glow.material.opacity = THREE.MathUtils.lerp(
-    0.1,
-    0.24,
-    THREE.MathUtils.smoothstep(distance, 18, 110),
   );
 }

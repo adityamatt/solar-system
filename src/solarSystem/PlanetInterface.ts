@@ -10,17 +10,19 @@ export interface MassSource {
 }
 
 export interface PlanetContract {
+  name: string;
   group: THREE.Group;
   position: THREE.Vector3;
   radius: number;
   update(simulatedDays: number): void;
   updateIllumination(sunPosition: THREE.Vector3): number;
   getMassSource(): MassSource;
+  getMassSources(): MassSource[];
 }
 
 export const PLANET_INTERFACE = Object.freeze({
-  properties: ['group', 'position', 'radius'],
-  methods: ['update', 'updateIllumination', 'getMassSource'],
+  properties: ['name', 'group', 'position', 'radius'],
+  methods: ['update', 'updateIllumination', 'getMassSource', 'getMassSources'],
 } satisfies {
   properties: Array<keyof PlanetContract>;
   methods: Array<keyof PlanetContract>;
@@ -37,6 +39,10 @@ export class PlanetInterface {
 
   getMassSource(): never {
     throw new Error('PlanetInterface.getMassSource must be implemented');
+  }
+
+  getMassSources(): never {
+    throw new Error('PlanetInterface.getMassSources must be implemented');
   }
 }
 
