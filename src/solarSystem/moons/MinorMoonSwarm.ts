@@ -19,6 +19,7 @@ export class MinorMoonSwarm extends CelestialBody implements MoonContract {
   private readonly baseAngles: number[] = [];
   private readonly radii: number[] = [];
   private readonly points: THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial>;
+  private lastUpdateStep = -1;
 
   constructor({
     parentName,
@@ -64,6 +65,13 @@ export class MinorMoonSwarm extends CelestialBody implements MoonContract {
   }
 
   update(simulatedDays: number): void {
+    const updateStep = Math.floor(simulatedDays * 2);
+    if (updateStep === this.lastUpdateStep) {
+      this.group.getWorldPosition(this.position);
+      return;
+    }
+    this.lastUpdateStep = updateStep;
+
     const positions = this.points.geometry.attributes.position as THREE.BufferAttribute;
 
     for (let i = 0; i < this.count; i += 1) {

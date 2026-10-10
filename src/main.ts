@@ -35,6 +35,10 @@ app.innerHTML = `
           <dd><span id="earth-flux">100</span>% of 1 AU</dd>
         </div>
         <div>
+          <dt>Illumination</dt>
+          <dd><span id="illumination-label">1.0</span>x curve</dd>
+        </div>
+        <div>
           <dt>Camera focus</dt>
           <dd><span id="focus-label">Sun</span></dd>
         </div>
@@ -47,6 +51,18 @@ app.innerHTML = `
         <span>Speed</span>
         <input id="speed-control" type="range" min="1" max="90" value="${DEFAULT_DAYS_PER_SECOND}" />
       </label>
+      <label class="control-row" for="illumination-control">
+        <span>Light</span>
+        <input id="illumination-control" type="range" min="0.2" max="50" step="0.2" value="1" />
+      </label>
+      <label class="toggle-row" for="orbit-path-control">
+        <span>Paths</span>
+        <input id="orbit-path-control" type="checkbox" checked />
+      </label>
+      <label class="color-row" for="grid-color-control">
+        <span>Grid</span>
+        <input id="grid-color-control" type="color" value="#63d4ff" />
+      </label>
     </section>
   </main>
 `;
@@ -56,7 +72,7 @@ if (!canvas) {
   throw new Error('Missing #solar-canvas element');
 }
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -89,11 +105,6 @@ const coordinateFrame = createCoordinateFrame({ size: 18 });
 scene.add(coordinateFrame);
 
 const lattice = new SpacetimeLattice({
-  size: 38,
-  divisions: 10,
-  samples: 90,
-  maxSize: 900,
-  targetCellSize: 8,
   color: 0x63d4ff,
   opacity: 0.16,
 });
@@ -126,16 +137,33 @@ const focusOptions = ['Sun', ...solarSystem.getPlanetNames()];
 const timer = new THREE.Timer();
 timer.connect(document);
 const speedControl = document.querySelector<HTMLInputElement>('#speed-control');
+const illuminationControl = document.querySelector<HTMLInputElement>('#illumination-control');
+const orbitPathControl = document.querySelector<HTMLInputElement>('#orbit-path-control');
+const gridColorControl = document.querySelector<HTMLInputElement>('#grid-color-control');
 const focusControl = document.querySelector<HTMLSelectElement>('#focus-control');
 const timeScaleLabel = document.querySelector<HTMLSpanElement>('#time-scale');
 const earthFluxLabel = document.querySelector<HTMLSpanElement>('#earth-flux');
+const illuminationLabel = document.querySelector<HTMLSpanElement>('#illumination-label');
 const focusLabel = document.querySelector<HTMLSpanElement>('#focus-label');
-if (!speedControl || !focusControl || !timeScaleLabel || !earthFluxLabel || !focusLabel) {
+if (
+  !speedControl ||
+  !illuminationControl ||
+  !orbitPathControl ||
+  !gridColorControl ||
+  !focusControl ||
+  !timeScaleLabel ||
+  !earthFluxLabel ||
+  !illuminationLabel ||
+  !focusLabel
+) {
   throw new Error('Missing simulation control elements');
 }
 let simulatedDays = 0;
 let daysPerSecond = DEFAULT_DAYS_PER_SECOND;
 let focusName = 'Sun';
+let elapsedSeconds = 0;
+let lastIlluminationUpdate = -Infinity;
+let cachedEarthSolarFlux = 1;
 
 focusControl.innerHTML = focusOptions
   .map((name) => `<option value="${name}">${name}</option>`)
@@ -145,6 +173,22 @@ speedControl.addEventListener('input', (event: Event) => {
   const target = event.target as HTMLInputElement;
   daysPerSecond = Number(target.value);
   timeScaleLabel.textContent = daysPerSecond.toString();
+});
+
+illuminationControl.addEventListener('input', (event: Event) => {
+  const target = event.target as HTMLInputElement;
+  const multiplier = Number(target.value);
+  illuminationEngine.setMultiplier(multiplier);
+  illuminationLabel.textContent = multiplier.toFixed(1);
+  lastIlluminationUpdate = -Infinity;
+});
+
+orbitPathControl.addEventListener('change', () => {
+  setOrbitPathsVisible(orbitPathControl.checked);
+});
+
+gridColorControl.addEventListener('input', () => {
+  lattice.setColor(gridColorControl.value);
 });
 
 focusControl.addEventListener('change', () => {
@@ -164,14 +208,20 @@ window.addEventListener('resize', resizeRenderer);
 renderer.setAnimationLoop((timestamp: number) => {
   timer.update(timestamp);
   const deltaSeconds = Math.min(timer.getDelta(), 0.05);
+  elapsedSeconds += deltaSeconds;
   simulatedDays += deltaSeconds * daysPerSecond;
 
   sun.update(simulatedDays);
   solarSystem.update(simulatedDays);
   solarLight.position.copy(sun.position);
-  const illumination = illuminationEngine.update();
-  const earthSolarFlux = illumination.get('Earth') ?? 1;
-  earthFluxLabel.textContent = Math.round(earthSolarFlux * 100).toString();
+
+  if (elapsedSeconds - lastIlluminationUpdate > 0.1) {
+    const illumination = illuminationEngine.update();
+    cachedEarthSolarFlux = illumination.get('Earth') ?? cachedEarthSolarFlux;
+    earthFluxLabel.textContent = Math.round(cachedEarthSolarFlux * 100).toString();
+    lastIlluminationUpdate = elapsedSeconds;
+  }
+
   const focusPosition = getFocusPosition(focusName);
 
   starField.rotation.y += deltaSeconds * 0.006;
@@ -187,7 +237,7 @@ renderer.setAnimationLoop((timestamp: number) => {
       flow: 0.03,
     },
     ...solarSystem.getMassSources(),
-  ], timer.getElapsed());
+  ], elapsedSeconds);
 
   controls.update();
   renderer.render(scene, camera);
@@ -205,6 +255,14 @@ function resizeRenderer(): void {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function setOrbitPathsVisible(visible: boolean): void {
+  solarSystem.group.traverse((object) => {
+    if (object.userData.isOrbitPath === true) {
+      object.visible = visible;
+    }
+  });
 }
 
 function createStarField(): THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial> {

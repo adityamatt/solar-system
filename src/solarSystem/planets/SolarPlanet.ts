@@ -87,7 +87,10 @@ export function createOrbitRing(
     opacity: 0.34,
   });
 
-  return new THREE.LineLoop(geometry, material);
+  const orbitRing = new THREE.LineLoop(geometry, material);
+  orbitRing.name = 'Orbit path';
+  orbitRing.userData.isOrbitPath = true;
+  return orbitRing;
 }
 
 export function createProceduralPlanetTexture(

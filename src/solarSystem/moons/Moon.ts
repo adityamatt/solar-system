@@ -91,5 +91,8 @@ function createMoonOrbitRing(radius: number): THREE.LineLoop {
     depthWrite: false,
   });
 
-  return new THREE.LineLoop(geometry, material);
+  const orbitRing = new THREE.LineLoop(geometry, material);
+  orbitRing.name = 'Moon orbit path';
+  orbitRing.userData.isOrbitPath = true;
+  return orbitRing;
 }

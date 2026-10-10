@@ -105,7 +105,9 @@ dd {
 }
 
 .control-row,
-.select-row {
+.select-row,
+.toggle-row,
+.color-row {
   display: grid;
   grid-template-columns: 54px 1fr;
   align-items: center;
@@ -121,6 +123,21 @@ dd {
 input[type="range"] {
   width: 100%;
   accent-color: #8dd7ff;
+}
+
+input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #8dd7ff;
+}
+
+input[type="color"] {
+  width: 44px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 select {
