@@ -46,7 +46,6 @@ interface LatticeUniforms extends Record<string, THREE.IUniform> {
   uMassParams: { value: THREE.Vector4[] };
   uWaveCount: { value: number };
   uWaveEnabled: { value: number };
-  uWaveIntensity: { value: number };
   uWaveOrigins: { value: THREE.Vector4[] };
   uWaveParams: { value: THREE.Vector4[] };
 }
@@ -93,7 +92,6 @@ export class SpacetimeLattice {
   private readonly baseOpacity: number;
   private lineThickness = 1;
   private waveEnabled = true;
-  private waveIntensity = 1;
   private readonly massPositions = Array.from(
     { length: MAX_SHADER_MASS_SOURCES },
     () => new THREE.Vector3(9999, 9999, 9999),
@@ -164,13 +162,6 @@ export class SpacetimeLattice {
     this.waveEnabled = enabled;
     this.levels.forEach((level) => {
       this.getUniforms(level.material).uWaveEnabled.value = enabled ? 1 : 0;
-    });
-  }
-
-  setGravityWaveIntensity(intensity: number): void {
-    this.waveIntensity = Math.max(intensity, 0);
-    this.levels.forEach((level) => {
-      this.getUniforms(level.material).uWaveIntensity.value = this.waveIntensity;
     });
   }
 
@@ -318,7 +309,6 @@ export class SpacetimeLattice {
       uMassParams: { value: this.massParams },
       uWaveCount: { value: 0 },
       uWaveEnabled: { value: this.waveEnabled ? 1 : 0 },
-      uWaveIntensity: { value: this.waveIntensity },
       uWaveOrigins: { value: this.waveOrigins },
       uWaveParams: { value: this.waveParams },
     };
@@ -338,7 +328,6 @@ export class SpacetimeLattice {
         uniform vec4 uMassParams[MAX_MASS_SOURCES];
         uniform int uWaveCount;
         uniform float uWaveEnabled;
-        uniform float uWaveIntensity;
         uniform vec4 uWaveOrigins[MAX_GRAVITY_WAVEFRONTS];
         uniform vec4 uWaveParams[MAX_GRAVITY_WAVEFRONTS];
 
@@ -398,10 +387,10 @@ export class SpacetimeLattice {
                 float shell = exp(-pow((distanceToWave - waveRadius) / wave.z, 2.0));
                 float falloff = 1.0 / (1.0 + waveRadius * 0.028);
                 float phase = sin((distanceToWave - waveRadius) * 4.4);
-                float pulse = wave.x * uWaveIntensity * shell * falloff * phase;
+                float pulse = wave.x * shell * falloff * phase;
 
                 warped += normalize(fromWave) * pulse;
-                waveStrain += abs(wave.x) * uWaveIntensity * shell * falloff;
+                waveStrain += abs(wave.x) * shell * falloff;
               }
             }
           }

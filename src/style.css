@@ -86,13 +86,24 @@ input:focus-visible {
 }
 
 .hud-body {
-  overflow: hidden;
-  max-height: 720px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: calc(100svh - 132px);
+  padding-right: 4px;
   opacity: 1;
   transition:
     max-height 0.22s ease,
     opacity 0.18s ease,
     margin-top 0.2s ease;
+}
+
+.hud-body::-webkit-scrollbar {
+  width: 7px;
+}
+
+.hud-body::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(141, 215, 255, 0.34);
 }
 
 .hud.is-collapsed {
@@ -252,6 +263,12 @@ dd {
 
 .select-row {
   margin-bottom: 12px;
+}
+
+.control-row,
+.toggle-row,
+.color-row {
+  margin-top: 10px;
 }
 
 .slider-row {

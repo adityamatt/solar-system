@@ -79,10 +79,6 @@ app.innerHTML = `
             <dd><span id="grid-thickness-label">1.0</span>x</dd>
           </div>
           <div>
-            <dt>Gravity waves</dt>
-            <dd><span id="gravity-wave-label">1.0</span>x</dd>
-          </div>
-          <div>
             <dt>Wave speed</dt>
             <dd><span id="gravity-wave-speed-label">100</span>% c</dd>
           </div>
@@ -138,15 +134,6 @@ app.innerHTML = `
           <span>Waves</span>
           <input id="gravity-wave-control" type="checkbox" checked />
         </label>
-        <div class="control-row slider-row">
-          <label for="gravity-wave-intensity-control">Wave</label>
-          <input id="gravity-wave-intensity-control" type="range" min="0" max="8" step="0.1" value="1" />
-          <div class="slider-bounds" aria-label="Gravity wave intensity range settings">
-            <label>Min <input id="gravity-wave-min-control" type="number" step="0.1" value="0" /></label>
-            <label>Value <input id="gravity-wave-value-control" type="number" step="0.1" value="1" /></label>
-            <label>Max <input id="gravity-wave-max-control" type="number" step="0.5" value="8" /></label>
-          </div>
-        </div>
         <div class="control-row slider-row">
           <label for="gravity-wave-speed-control">Wave c</label>
           <input id="gravity-wave-speed-control" type="range" min="0.1" max="100" step="0.1" value="100" />
@@ -246,10 +233,6 @@ const gridThicknessValueControl = document.querySelector<HTMLInputElement>('#gri
 const gridThicknessMaxControl = document.querySelector<HTMLInputElement>('#grid-thickness-max-control');
 const gridVisibilityControl = document.querySelector<HTMLInputElement>('#grid-visibility-control');
 const gravityWaveControl = document.querySelector<HTMLInputElement>('#gravity-wave-control');
-const gravityWaveIntensityControl = document.querySelector<HTMLInputElement>('#gravity-wave-intensity-control');
-const gravityWaveMinControl = document.querySelector<HTMLInputElement>('#gravity-wave-min-control');
-const gravityWaveValueControl = document.querySelector<HTMLInputElement>('#gravity-wave-value-control');
-const gravityWaveMaxControl = document.querySelector<HTMLInputElement>('#gravity-wave-max-control');
 const gravityWaveSpeedControl = document.querySelector<HTMLInputElement>('#gravity-wave-speed-control');
 const gravityWaveSpeedMinControl = document.querySelector<HTMLInputElement>('#gravity-wave-speed-min-control');
 const gravityWaveSpeedValueControl = document.querySelector<HTMLInputElement>('#gravity-wave-speed-value-control');
@@ -265,7 +248,6 @@ const earthFluxLabel = document.querySelector<HTMLSpanElement>('#earth-flux');
 const moonPhaseLabel = document.querySelector<HTMLSpanElement>('#moon-phase');
 const illuminationLabel = document.querySelector<HTMLSpanElement>('#illumination-label');
 const gridThicknessLabel = document.querySelector<HTMLSpanElement>('#grid-thickness-label');
-const gravityWaveLabel = document.querySelector<HTMLSpanElement>('#gravity-wave-label');
 const gravityWaveSpeedLabel = document.querySelector<HTMLSpanElement>('#gravity-wave-speed-label');
 const focusLabel = document.querySelector<HTMLSpanElement>('#focus-label');
 if (
@@ -285,10 +267,6 @@ if (
   !gridThicknessMaxControl ||
   !gridVisibilityControl ||
   !gravityWaveControl ||
-  !gravityWaveIntensityControl ||
-  !gravityWaveMinControl ||
-  !gravityWaveValueControl ||
-  !gravityWaveMaxControl ||
   !gravityWaveSpeedControl ||
   !gravityWaveSpeedMinControl ||
   !gravityWaveSpeedValueControl ||
@@ -304,7 +282,6 @@ if (
   !moonPhaseLabel ||
   !illuminationLabel ||
   !gridThicknessLabel ||
-  !gravityWaveLabel ||
   !gravityWaveSpeedLabel ||
   !focusLabel
 ) {
@@ -391,20 +368,6 @@ gridVisibilityControl.addEventListener('change', () => {
 
 gravityWaveControl.addEventListener('change', () => {
   lattice.setGravityWavesEnabled(gravityWaveControl.checked);
-});
-
-bindEditableSlider({
-  range: gravityWaveIntensityControl,
-  minInput: gravityWaveMinControl,
-  valueInput: gravityWaveValueControl,
-  maxInput: gravityWaveMaxControl,
-  minGap: 0.1,
-  fallbackMin: 0,
-  fallbackMax: 8,
-  onValueChange: (value) => {
-    lattice.setGravityWaveIntensity(value);
-    gravityWaveLabel.textContent = value.toFixed(1);
-  },
 });
 
 bindEditableSlider({
