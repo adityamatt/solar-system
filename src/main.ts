@@ -83,6 +83,10 @@ app.innerHTML = `
             <dd><span id="gravity-wave-label">1.0</span>x</dd>
           </div>
           <div>
+            <dt>Wave speed</dt>
+            <dd><span id="gravity-wave-speed-label">100</span>% c</dd>
+          </div>
+          <div>
             <dt>Camera focus</dt>
             <dd><span id="focus-label">Sun</span></dd>
           </div>
@@ -141,6 +145,15 @@ app.innerHTML = `
             <label>Min <input id="gravity-wave-min-control" type="number" step="0.1" value="0" /></label>
             <label>Value <input id="gravity-wave-value-control" type="number" step="0.1" value="1" /></label>
             <label>Max <input id="gravity-wave-max-control" type="number" step="0.5" value="8" /></label>
+          </div>
+        </div>
+        <div class="control-row slider-row">
+          <label for="gravity-wave-speed-control">Wave c</label>
+          <input id="gravity-wave-speed-control" type="range" min="0.1" max="100" step="0.1" value="100" />
+          <div class="slider-bounds" aria-label="Gravity wave speed range settings">
+            <label>Min <input id="gravity-wave-speed-min-control" type="number" step="0.1" value="0.1" /></label>
+            <label>Value <input id="gravity-wave-speed-value-control" type="number" step="0.1" value="100" /></label>
+            <label>Max <input id="gravity-wave-speed-max-control" type="number" step="1" value="100" /></label>
           </div>
         </div>
       </div>
@@ -237,6 +250,10 @@ const gravityWaveIntensityControl = document.querySelector<HTMLInputElement>('#g
 const gravityWaveMinControl = document.querySelector<HTMLInputElement>('#gravity-wave-min-control');
 const gravityWaveValueControl = document.querySelector<HTMLInputElement>('#gravity-wave-value-control');
 const gravityWaveMaxControl = document.querySelector<HTMLInputElement>('#gravity-wave-max-control');
+const gravityWaveSpeedControl = document.querySelector<HTMLInputElement>('#gravity-wave-speed-control');
+const gravityWaveSpeedMinControl = document.querySelector<HTMLInputElement>('#gravity-wave-speed-min-control');
+const gravityWaveSpeedValueControl = document.querySelector<HTMLInputElement>('#gravity-wave-speed-value-control');
+const gravityWaveSpeedMaxControl = document.querySelector<HTMLInputElement>('#gravity-wave-speed-max-control');
 const focusControl = document.querySelector<HTMLSelectElement>('#focus-control');
 const hud = document.querySelector<HTMLElement>('.hud');
 const hudBody = document.querySelector<HTMLElement>('#hud-body');
@@ -249,6 +266,7 @@ const moonPhaseLabel = document.querySelector<HTMLSpanElement>('#moon-phase');
 const illuminationLabel = document.querySelector<HTMLSpanElement>('#illumination-label');
 const gridThicknessLabel = document.querySelector<HTMLSpanElement>('#grid-thickness-label');
 const gravityWaveLabel = document.querySelector<HTMLSpanElement>('#gravity-wave-label');
+const gravityWaveSpeedLabel = document.querySelector<HTMLSpanElement>('#gravity-wave-speed-label');
 const focusLabel = document.querySelector<HTMLSpanElement>('#focus-label');
 if (
   !speedControl ||
@@ -271,6 +289,10 @@ if (
   !gravityWaveMinControl ||
   !gravityWaveValueControl ||
   !gravityWaveMaxControl ||
+  !gravityWaveSpeedControl ||
+  !gravityWaveSpeedMinControl ||
+  !gravityWaveSpeedValueControl ||
+  !gravityWaveSpeedMaxControl ||
   !focusControl ||
   !hud ||
   !hudBody ||
@@ -283,6 +305,7 @@ if (
   !illuminationLabel ||
   !gridThicknessLabel ||
   !gravityWaveLabel ||
+  !gravityWaveSpeedLabel ||
   !focusLabel
 ) {
   throw new Error('Missing simulation control elements');
@@ -297,9 +320,10 @@ let lastIlluminationUpdate = -Infinity;
 let lastTelemetryUpdate = -Infinity;
 let lastGravityWaveEmission = -Infinity;
 let cachedEarthSolarFlux = 1;
+let gravityWaveSpeedPercent = 100;
 const previousWaveSourcePositions: THREE.Vector3[] = [];
 const GRAVITY_WAVE_EMISSION_INTERVAL_SECONDS = 0.65;
-const VISUAL_GRAVITY_WAVE_SPEED = 145;
+const VISUAL_LIGHT_SPEED = 145;
 
 focusControl.innerHTML = focusOptions
   .map((name) => `<option value="${name}">${name}</option>`)
@@ -380,6 +404,20 @@ bindEditableSlider({
   onValueChange: (value) => {
     lattice.setGravityWaveIntensity(value);
     gravityWaveLabel.textContent = value.toFixed(1);
+  },
+});
+
+bindEditableSlider({
+  range: gravityWaveSpeedControl,
+  minInput: gravityWaveSpeedMinControl,
+  valueInput: gravityWaveSpeedValueControl,
+  maxInput: gravityWaveSpeedMaxControl,
+  minGap: 0.1,
+  fallbackMin: 0.1,
+  fallbackMax: 100,
+  onValueChange: (value) => {
+    gravityWaveSpeedPercent = Math.max(value, 0);
+    gravityWaveSpeedLabel.textContent = formatControlNumber(gravityWaveSpeedPercent);
   },
 });
 
@@ -498,7 +536,7 @@ function emitGravityWavefronts(
       origin: source.position,
       startSeconds: currentSeconds,
       amplitude,
-      speed: VISUAL_GRAVITY_WAVE_SPEED,
+      speed: VISUAL_LIGHT_SPEED * (gravityWaveSpeedPercent / 100),
       width: THREE.MathUtils.lerp(4.5, 11, THREE.MathUtils.clamp(amplitude / 0.08, 0, 1)),
     });
   });
