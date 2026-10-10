@@ -87,4 +87,6 @@ export class MinorMoonSwarm extends CelestialBody implements MoonContract {
     positions.needsUpdate = true;
     this.group.getWorldPosition(this.position);
   }
+
+  rebuildTrajectoryPath(_simulatedDays: number): void {}
 }

@@ -2,7 +2,9 @@ import './style.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { createCoordinateFrame } from './solarSystem/CoordinateFrame';
+import { getDaysSinceJ2000 } from './solarSystem/Ephemeris';
 import { IlluminationEngine } from './solarSystem/IlluminationEngine';
+import { getEarthMoonState } from './solarSystem/LunarEphemeris';
 import { Planet } from './solarSystem/Planet';
 import { createSolarSystemComposite } from './solarSystem/SolarSystemComposite';
 import { SpacetimeLattice } from './solarSystem/SpacetimeLattice';
@@ -17,52 +19,67 @@ app.innerHTML = `
   <main class="simulation-shell">
     <canvas id="solar-canvas" aria-label="General relativity inspired solar system animation"></canvas>
     <section class="hud" aria-label="Simulation controls">
-      <div>
-        <p class="eyebrow">Solar System / GR sketch</p>
-        <h1>Mass changes the metric: space contracts around the solar system</h1>
+      <div class="hud-header">
+        <div>
+          <p class="eyebrow">Solar System / GR sketch</p>
+          <h1>Mass changes the metric: space contracts around the solar system</h1>
+        </div>
+        <button id="hud-toggle" class="hud-toggle" type="button" aria-expanded="true" aria-controls="hud-body">
+          Hide
+        </button>
       </div>
-      <dl class="metrics">
-        <div>
-          <dt>Time scale</dt>
-          <dd><span id="time-scale">${DEFAULT_DAYS_PER_SECOND}</span> days / sec</dd>
-        </div>
-        <div>
-          <dt>Earth orbit</dt>
-          <dd>365.25 : 1 day spin</dd>
-        </div>
-        <div>
-          <dt>Earth flux</dt>
-          <dd><span id="earth-flux">100</span>% of 1 AU</dd>
-        </div>
-        <div>
-          <dt>Illumination</dt>
-          <dd><span id="illumination-label">1.0</span>x curve</dd>
-        </div>
-        <div>
-          <dt>Camera focus</dt>
-          <dd><span id="focus-label">Sun</span></dd>
-        </div>
-      </dl>
-      <label class="select-row" for="focus-control">
-        <span>Focus</span>
-        <select id="focus-control"></select>
-      </label>
-      <label class="control-row" for="speed-control">
-        <span>Speed</span>
-        <input id="speed-control" type="range" min="1" max="90" value="${DEFAULT_DAYS_PER_SECOND}" />
-      </label>
-      <label class="control-row" for="illumination-control">
-        <span>Light</span>
-        <input id="illumination-control" type="range" min="0.2" max="50" step="0.2" value="1" />
-      </label>
-      <label class="toggle-row" for="orbit-path-control">
-        <span>Paths</span>
-        <input id="orbit-path-control" type="checkbox" checked />
-      </label>
-      <label class="color-row" for="grid-color-control">
-        <span>Grid</span>
-        <input id="grid-color-control" type="color" value="#63d4ff" />
-      </label>
+      <div id="hud-body" class="hud-body" aria-hidden="false">
+        <dl class="metrics">
+          <div>
+            <dt>Time scale</dt>
+            <dd><span id="time-scale">${DEFAULT_DAYS_PER_SECOND}</span> days / sec</dd>
+          </div>
+          <div>
+            <dt>Earth orbit</dt>
+            <dd>365.25 : 1 day spin</dd>
+          </div>
+          <div>
+            <dt>Earth flux</dt>
+            <dd><span id="earth-flux">100</span>% of 1 AU</dd>
+          </div>
+          <div>
+            <dt>Moon phase</dt>
+            <dd><span id="moon-phase">--</span></dd>
+          </div>
+          <div>
+            <dt>Illumination</dt>
+            <dd><span id="illumination-label">1.0</span>x curve</dd>
+          </div>
+          <div>
+            <dt>Camera focus</dt>
+            <dd><span id="focus-label">Sun</span></dd>
+          </div>
+        </dl>
+        <label class="select-row" for="focus-control">
+          <span>Focus</span>
+          <select id="focus-control"></select>
+        </label>
+        <label class="control-row" for="speed-control">
+          <span>Speed</span>
+          <input id="speed-control" type="range" min="1" max="90" value="${DEFAULT_DAYS_PER_SECOND}" />
+        </label>
+        <label class="control-row" for="illumination-control">
+          <span>Light</span>
+          <input id="illumination-control" type="range" min="0.2" max="50" step="0.2" value="1" />
+        </label>
+        <label class="toggle-row" for="orbit-path-control">
+          <span>Paths</span>
+          <input id="orbit-path-control" type="checkbox" checked />
+        </label>
+        <label class="color-row" for="grid-color-control">
+          <span>Grid</span>
+          <input id="grid-color-control" type="color" value="#63d4ff" />
+        </label>
+        <label class="toggle-row" for="grid-visibility-control">
+          <span>Grid</span>
+          <input id="grid-visibility-control" type="checkbox" checked />
+        </label>
+      </div>
     </section>
   </main>
 `;
@@ -140,9 +157,14 @@ const speedControl = document.querySelector<HTMLInputElement>('#speed-control');
 const illuminationControl = document.querySelector<HTMLInputElement>('#illumination-control');
 const orbitPathControl = document.querySelector<HTMLInputElement>('#orbit-path-control');
 const gridColorControl = document.querySelector<HTMLInputElement>('#grid-color-control');
+const gridVisibilityControl = document.querySelector<HTMLInputElement>('#grid-visibility-control');
 const focusControl = document.querySelector<HTMLSelectElement>('#focus-control');
+const hud = document.querySelector<HTMLElement>('.hud');
+const hudBody = document.querySelector<HTMLElement>('#hud-body');
+const hudToggle = document.querySelector<HTMLButtonElement>('#hud-toggle');
 const timeScaleLabel = document.querySelector<HTMLSpanElement>('#time-scale');
 const earthFluxLabel = document.querySelector<HTMLSpanElement>('#earth-flux');
+const moonPhaseLabel = document.querySelector<HTMLSpanElement>('#moon-phase');
 const illuminationLabel = document.querySelector<HTMLSpanElement>('#illumination-label');
 const focusLabel = document.querySelector<HTMLSpanElement>('#focus-label');
 if (
@@ -150,15 +172,20 @@ if (
   !illuminationControl ||
   !orbitPathControl ||
   !gridColorControl ||
+  !gridVisibilityControl ||
   !focusControl ||
+  !hud ||
+  !hudBody ||
+  !hudToggle ||
   !timeScaleLabel ||
   !earthFluxLabel ||
+  !moonPhaseLabel ||
   !illuminationLabel ||
   !focusLabel
 ) {
   throw new Error('Missing simulation control elements');
 }
-let simulatedDays = 0;
+let simulatedDays = getDaysSinceJ2000(new Date());
 let daysPerSecond = DEFAULT_DAYS_PER_SECOND;
 let focusName = 'Sun';
 let elapsedSeconds = 0;
@@ -168,6 +195,10 @@ let cachedEarthSolarFlux = 1;
 focusControl.innerHTML = focusOptions
   .map((name) => `<option value="${name}">${name}</option>`)
   .join('');
+
+sun.update(simulatedDays);
+solarSystem.update(simulatedDays);
+solarSystem.rebuildTrajectoryPath(simulatedDays);
 
 speedControl.addEventListener('input', (event: Event) => {
   const target = event.target as HTMLInputElement;
@@ -189,6 +220,17 @@ orbitPathControl.addEventListener('change', () => {
 
 gridColorControl.addEventListener('input', () => {
   lattice.setColor(gridColorControl.value);
+});
+
+gridVisibilityControl.addEventListener('change', () => {
+  lattice.group.visible = gridVisibilityControl.checked;
+});
+
+hudToggle.addEventListener('click', () => {
+  const collapsed = hud.classList.toggle('is-collapsed');
+  hudBody.setAttribute('aria-hidden', String(collapsed));
+  hudToggle.setAttribute('aria-expanded', String(!collapsed));
+  hudToggle.textContent = collapsed ? 'Controls' : 'Hide';
 });
 
 focusControl.addEventListener('change', () => {
@@ -217,8 +259,12 @@ renderer.setAnimationLoop((timestamp: number) => {
 
   if (elapsedSeconds - lastIlluminationUpdate > 0.1) {
     const illumination = illuminationEngine.update();
+    const moonState = getEarthMoonState(simulatedDays);
     cachedEarthSolarFlux = illumination.get('Earth') ?? cachedEarthSolarFlux;
     earthFluxLabel.textContent = Math.round(cachedEarthSolarFlux * 100).toString();
+    moonPhaseLabel.textContent = `${moonState.phaseName} ${Math.round(
+      moonState.illuminatedFraction * 100,
+    )}%`;
     lastIlluminationUpdate = elapsedSeconds;
   }
 

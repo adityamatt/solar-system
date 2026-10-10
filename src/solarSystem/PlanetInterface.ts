@@ -18,11 +18,18 @@ export interface PlanetContract {
   updateIllumination(sunPosition: THREE.Vector3): number;
   getMassSource(): MassSource;
   getMassSources(): MassSource[];
+  rebuildTrajectoryPath(simulatedDays: number): void;
 }
 
 export const PLANET_INTERFACE = Object.freeze({
   properties: ['name', 'group', 'position', 'radius'],
-  methods: ['update', 'updateIllumination', 'getMassSource', 'getMassSources'],
+  methods: [
+    'update',
+    'updateIllumination',
+    'getMassSource',
+    'getMassSources',
+    'rebuildTrajectoryPath',
+  ],
 } satisfies {
   properties: Array<keyof PlanetContract>;
   methods: Array<keyof PlanetContract>;
@@ -43,6 +50,10 @@ export class PlanetInterface {
 
   getMassSources(): never {
     throw new Error('PlanetInterface.getMassSources must be implemented');
+  }
+
+  rebuildTrajectoryPath(): never {
+    throw new Error('PlanetInterface.rebuildTrajectoryPath must be implemented');
   }
 }
 

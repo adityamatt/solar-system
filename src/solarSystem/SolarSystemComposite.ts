@@ -42,6 +42,10 @@ export class SolarSystemComposite {
     return this.children.flatMap((planet) => planet.getMassSources());
   }
 
+  rebuildTrajectoryPath(simulatedDays: number): void {
+    this.children.forEach((planet) => planet.rebuildTrajectoryPath(simulatedDays));
+  }
+
   findPlanet(name: string): PlanetContract {
     const planet = this.children.find((candidate) => candidate.name === name);
     if (!planet) {

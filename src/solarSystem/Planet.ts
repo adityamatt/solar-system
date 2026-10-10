@@ -1,9 +1,16 @@
 import * as THREE from 'three';
 import { CelestialBody, CelestialComposite } from './CelestialBody';
+import {
+  getPlanetHeliocentricPathAu,
+  getPlanetHeliocentricPositionAu,
+  type PlanetEphemerisKey,
+} from './Ephemeris';
 import { markReceivesSunlight } from './IlluminationEngine';
 import type { MoonContract } from './MoonInterface';
+import { AU } from './constants';
 
 const FULL_TURN = Math.PI * 2;
+const DEFAULT_PATH_SEGMENTS = 384;
 
 interface PlanetOptions {
   name: string;
@@ -13,6 +20,8 @@ interface PlanetOptions {
   rotationPeriodDays: number;
   axialTilt?: number;
   initialAngle?: number;
+  ephemerisKey?: PlanetEphemerisKey;
+  pathColor?: THREE.ColorRepresentation;
   material: THREE.MeshStandardMaterial;
   receivesSunlight?: boolean;
 }
@@ -22,6 +31,8 @@ export class Planet extends CelestialBody {
   orbitalPeriodDays: number;
   rotationPeriodDays: number;
   initialAngle: number;
+  ephemerisKey?: PlanetEphemerisKey;
+  pathColor: THREE.ColorRepresentation;
   receivesSunlight: boolean;
   orbitPivot: THREE.Group;
   orbitOffset: THREE.Group;
@@ -37,6 +48,8 @@ export class Planet extends CelestialBody {
     rotationPeriodDays,
     axialTilt = 0,
     initialAngle = 0,
+    ephemerisKey,
+    pathColor = 0x4d7895,
     material,
     receivesSunlight = false,
   }: PlanetOptions) {
@@ -45,6 +58,8 @@ export class Planet extends CelestialBody {
     this.orbitalPeriodDays = orbitalPeriodDays;
     this.rotationPeriodDays = rotationPeriodDays;
     this.initialAngle = initialAngle;
+    this.ephemerisKey = ephemerisKey;
+    this.pathColor = pathColor;
     this.receivesSunlight = receivesSunlight;
 
     this.group.name = `${name} system`;
@@ -79,12 +94,16 @@ export class Planet extends CelestialBody {
   }
 
   update(simulatedDays: number): void {
-    if (this.orbitalPeriodDays > 0) {
+    if (this.ephemerisKey) {
+      const positionAu = getPlanetHeliocentricPositionAu(this.ephemerisKey, simulatedDays);
+      this.orbitPivot.rotation.y = 0;
+      this.orbitOffset.position.set(positionAu.x * AU, positionAu.z * AU, positionAu.y * AU);
+    } else if (this.orbitalPeriodDays > 0) {
       this.orbitPivot.rotation.y =
         this.initialAngle + (simulatedDays / this.orbitalPeriodDays) * FULL_TURN;
     }
 
-    if (this.rotationPeriodDays > 0) {
+    if (this.rotationPeriodDays !== 0) {
       this.mesh.rotation.y = (simulatedDays / this.rotationPeriodDays) * FULL_TURN;
     }
 
@@ -92,7 +111,35 @@ export class Planet extends CelestialBody {
     this.mesh.getWorldPosition(this.position);
   }
 
+  rebuildTrajectoryPath(simulatedDays: number): void {
+    const points = this.ephemerisKey
+      ? this.sampleEphemerisPath(simulatedDays)
+      : this.sampleCircularPath();
+
+    this.setTrajectoryPath(points, this.pathColor, 0.34);
+    this.moonSystem.rebuildTrajectoryPath(simulatedDays);
+  }
+
   updateSunlight(_sunPosition: THREE.Vector3, _referenceDistance: number): number {
     return 1;
+  }
+
+  private sampleEphemerisPath(simulatedDays: number): THREE.Vector3[] {
+    if (!this.ephemerisKey || this.orbitalPeriodDays <= 0) return this.sampleCircularPath();
+
+    return getPlanetHeliocentricPathAu(this.ephemerisKey, simulatedDays, DEFAULT_PATH_SEGMENTS).map(
+      (positionAu) => new THREE.Vector3(positionAu.x * AU, positionAu.z * AU, positionAu.y * AU),
+    );
+  }
+
+  private sampleCircularPath(): THREE.Vector3[] {
+    return Array.from({ length: DEFAULT_PATH_SEGMENTS }, (_, index) => {
+      const angle = this.initialAngle + (index / DEFAULT_PATH_SEGMENTS) * FULL_TURN;
+      return new THREE.Vector3(
+        Math.cos(angle) * this.orbitRadius,
+        0,
+        Math.sin(angle) * this.orbitRadius,
+      );
+    });
   }
 }

@@ -3,13 +3,13 @@ import { Planet } from '../Planet';
 import type { MassSource, PlanetContract } from '../PlanetInterface';
 import { BODIES } from '../constants';
 import { Moon } from '../moons/Moon';
-import { createOrbitRing } from './SolarPlanet';
 
 export class Earth extends Planet implements PlanetContract {
   constructor() {
     super({
       ...BODIES.earth,
       receivesSunlight: true,
+      pathColor: 0x7ab8ff,
       material: new THREE.MeshStandardMaterial({
         map: createEarthTexture(),
         roughness: 0.7,
@@ -19,7 +19,6 @@ export class Earth extends Planet implements PlanetContract {
       }),
     });
 
-    this.group.add(createOrbitRing(BODIES.earth.orbitRadius, 0x7ab8ff));
     this.addMoon(
       new Moon({
         name: 'Moon',
@@ -29,6 +28,7 @@ export class Earth extends Planet implements PlanetContract {
         orbitalPeriodDays: 27.32,
         color: 0xb9b7ad,
         compactness: 0.08,
+        useEarthMoonEphemeris: true,
       }),
     );
   }

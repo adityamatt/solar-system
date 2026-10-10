@@ -56,6 +56,68 @@ select {
   background: rgba(2, 7, 17, 0.72);
   backdrop-filter: blur(18px);
   box-shadow: 0 18px 60px rgba(0, 0, 0, 0.28);
+  transition:
+    width 0.2s ease,
+    padding 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.hud-header {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 14px;
+  align-items: start;
+}
+
+.hud-toggle {
+  color: #f8fbff;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 7px 10px;
+  cursor: pointer;
+}
+
+.hud-toggle:focus-visible,
+select:focus-visible,
+input:focus-visible {
+  outline: 2px solid #8dd7ff;
+  outline-offset: 2px;
+}
+
+.hud-body {
+  overflow: hidden;
+  max-height: 720px;
+  opacity: 1;
+  transition:
+    max-height 0.22s ease,
+    opacity 0.18s ease,
+    margin-top 0.2s ease;
+}
+
+.hud.is-collapsed {
+  width: auto;
+  min-width: 0;
+  padding: 10px;
+}
+
+.hud.is-collapsed .hud-header {
+  display: flex;
+}
+
+.hud.is-collapsed .hud-header > div,
+.hud.is-collapsed .hud-body {
+  display: none;
+  max-height: 0;
+  opacity: 0;
+  margin: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.hud.is-collapsed .hud-toggle {
+  display: block;
+  white-space: nowrap;
 }
 
 .eyebrow {

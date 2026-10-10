@@ -10,6 +10,7 @@ export interface BodyConfig {
   rotationPeriodDays: number;
   axialTilt: number;
   initialAngle: number;
+  ephemerisKey?: 'mercury' | 'venus' | 'earth' | 'mars' | 'jupiter' | 'saturn' | 'uranus' | 'neptune';
 }
 
 export const BODIES: Record<
@@ -33,6 +34,7 @@ export const BODIES: Record<
     rotationPeriodDays: 58.65,
     axialTilt: 0.03,
     initialAngle: 1.15,
+    ephemerisKey: 'mercury',
   },
   venus: {
     name: 'Venus',
@@ -42,6 +44,7 @@ export const BODIES: Record<
     rotationPeriodDays: -243.02,
     axialTilt: 177.36,
     initialAngle: 2.55,
+    ephemerisKey: 'venus',
   },
   earth: {
     name: 'Earth',
@@ -51,6 +54,7 @@ export const BODIES: Record<
     rotationPeriodDays: 1,
     axialTilt: 23.44,
     initialAngle: 0.65,
+    ephemerisKey: 'earth',
   },
   mars: {
     name: 'Mars',
@@ -60,6 +64,7 @@ export const BODIES: Record<
     rotationPeriodDays: 1.03,
     axialTilt: 25.19,
     initialAngle: 3.75,
+    ephemerisKey: 'mars',
   },
   jupiter: {
     name: 'Jupiter',
@@ -69,6 +74,7 @@ export const BODIES: Record<
     rotationPeriodDays: 0.41,
     axialTilt: 3.13,
     initialAngle: 5.15,
+    ephemerisKey: 'jupiter',
   },
   saturn: {
     name: 'Saturn',
@@ -78,6 +84,7 @@ export const BODIES: Record<
     rotationPeriodDays: 0.44,
     axialTilt: 26.73,
     initialAngle: 4.4,
+    ephemerisKey: 'saturn',
   },
   uranus: {
     name: 'Uranus',
@@ -87,6 +94,7 @@ export const BODIES: Record<
     rotationPeriodDays: -0.72,
     axialTilt: 97.77,
     initialAngle: 2.1,
+    ephemerisKey: 'uranus',
   },
   neptune: {
     name: 'Neptune',
@@ -96,5 +104,6 @@ export const BODIES: Record<
     rotationPeriodDays: 0.67,
     axialTilt: 28.32,
     initialAngle: 5.85,
+    ephemerisKey: 'neptune',
   },
 };

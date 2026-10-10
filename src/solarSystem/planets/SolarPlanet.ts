@@ -35,6 +35,7 @@ export class SolarPlanet extends Planet implements PlanetContract {
     super({
       ...body,
       receivesSunlight: true,
+      pathColor: orbitColor,
       material:
         material ??
         new THREE.MeshStandardMaterial({
@@ -50,8 +51,6 @@ export class SolarPlanet extends Planet implements PlanetContract {
     this.softening = softening ?? Math.max(0.55, body.radius * 1.35);
     this.maxContraction = maxContraction ?? Math.min(0.2, 0.08 + body.radius * 0.025);
     this.flow = flow;
-
-    this.group.add(createOrbitRing(body.orbitRadius, orbitColor));
   }
 
   updateIllumination(sunPosition: THREE.Vector3): number {
@@ -72,25 +71,6 @@ export class SolarPlanet extends Planet implements PlanetContract {
   getMassSources(): MassSource[] {
     return [this.getMassSource(), ...this.moonSystem.getMassSources()];
   }
-}
-
-export function createOrbitRing(
-  radius: number,
-  color: THREE.ColorRepresentation,
-): THREE.LineLoop {
-  const curve = new THREE.EllipseCurve(0, 0, radius, radius, 0, Math.PI * 2, false, 0);
-  const points = curve.getPoints(320).map((point) => new THREE.Vector3(point.x, 0, point.y));
-  const geometry = new THREE.BufferGeometry().setFromPoints(points);
-  const material = new THREE.LineBasicMaterial({
-    color,
-    transparent: true,
-    opacity: 0.34,
-  });
-
-  const orbitRing = new THREE.LineLoop(geometry, material);
-  orbitRing.name = 'Orbit path';
-  orbitRing.userData.isOrbitPath = true;
-  return orbitRing;
 }
 
 export function createProceduralPlanetTexture(

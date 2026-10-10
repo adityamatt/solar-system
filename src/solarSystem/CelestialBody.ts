@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { MassSource } from './PlanetInterface';
+import { createTrajectoryLine, replaceTrajectoryPath } from './TrajectoryPath';
 
 export interface CelestialBodyContract {
   name: string;
@@ -8,6 +9,7 @@ export interface CelestialBodyContract {
   radius: number;
   update(simulatedDays: number): void;
   getMassSources(): MassSource[];
+  rebuildTrajectoryPath(simulatedDays: number): void;
 }
 
 export abstract class CelestialBody implements CelestialBodyContract {
@@ -15,6 +17,7 @@ export abstract class CelestialBody implements CelestialBodyContract {
   radius: number;
   group: THREE.Group;
   position = new THREE.Vector3();
+  protected trajectoryPath: THREE.Object3D | null = null;
 
   protected constructor(name: string, radius: number) {
     this.name = name;
@@ -27,6 +30,20 @@ export abstract class CelestialBody implements CelestialBodyContract {
 
   getMassSources(): MassSource[] {
     return [];
+  }
+
+  rebuildTrajectoryPath(_simulatedDays: number): void {}
+
+  protected setTrajectoryPath(
+    points: THREE.Vector3[],
+    color: THREE.ColorRepresentation,
+    opacity: number,
+  ): void {
+    this.trajectoryPath = replaceTrajectoryPath(
+      this.group,
+      this.trajectoryPath,
+      createTrajectoryLine(`${this.name} trajectory`, points, color, opacity),
+    );
   }
 }
 
@@ -54,5 +71,9 @@ export class CelestialComposite implements CelestialBodyContract {
 
   getMassSources(): MassSource[] {
     return this.children.flatMap((body) => body.getMassSources());
+  }
+
+  rebuildTrajectoryPath(simulatedDays: number): void {
+    this.children.forEach((body) => body.rebuildTrajectoryPath(simulatedDays));
   }
 }

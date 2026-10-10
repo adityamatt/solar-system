@@ -6,11 +6,12 @@ export interface MoonContract extends CelestialBodyContract {
   parentName: string;
   update(simulatedDays: number): void;
   getMassSources(): MassSource[];
+  rebuildTrajectoryPath(simulatedDays: number): void;
 }
 
 export const MOON_INTERFACE = Object.freeze({
   properties: ['name', 'parentName', 'group', 'position', 'radius'],
-  methods: ['update', 'getMassSources'],
+  methods: ['update', 'getMassSources', 'rebuildTrajectoryPath'],
 } satisfies {
   properties: Array<keyof MoonContract>;
   methods: Array<keyof MoonContract>;
