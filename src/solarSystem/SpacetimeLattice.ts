@@ -4,6 +4,15 @@ import type { MassSource } from './PlanetInterface';
 const AXES = ['x', 'y', 'z'] as const;
 type Axis = (typeof AXES)[number];
 const MAX_SHADER_MASS_SOURCES = 16;
+const MAX_GRAVITY_WAVEFRONTS = 16;
+
+export interface GravityWavefront {
+  origin: THREE.Vector3;
+  startSeconds: number;
+  amplitude: number;
+  speed: number;
+  width: number;
+}
 
 interface SpacetimeLatticeOptions {
   color?: THREE.ColorRepresentation;
@@ -35,6 +44,11 @@ interface LatticeUniforms extends Record<string, THREE.IUniform> {
   uMassCount: { value: number };
   uMassPositions: { value: THREE.Vector3[] };
   uMassParams: { value: THREE.Vector4[] };
+  uWaveCount: { value: number };
+  uWaveEnabled: { value: number };
+  uWaveIntensity: { value: number };
+  uWaveOrigins: { value: THREE.Vector4[] };
+  uWaveParams: { value: THREE.Vector4[] };
 }
 
 const LATTICE_LEVELS: LatticeLevelConfig[] = [
@@ -78,6 +92,8 @@ export class SpacetimeLattice {
   private readonly levels: LatticeLevel[] = [];
   private readonly baseOpacity: number;
   private lineThickness = 1;
+  private waveEnabled = true;
+  private waveIntensity = 1;
   private readonly massPositions = Array.from(
     { length: MAX_SHADER_MASS_SOURCES },
     () => new THREE.Vector3(9999, 9999, 9999),
@@ -86,6 +102,15 @@ export class SpacetimeLattice {
     { length: MAX_SHADER_MASS_SOURCES },
     () => new THREE.Vector4(0, 1, 1, 0),
   );
+  private readonly waveOrigins = Array.from(
+    { length: MAX_GRAVITY_WAVEFRONTS },
+    () => new THREE.Vector4(9999, 9999, 9999, -9999),
+  );
+  private readonly waveParams = Array.from(
+    { length: MAX_GRAVITY_WAVEFRONTS },
+    () => new THREE.Vector4(0, 1, 1, 0),
+  );
+  private readonly wavefronts: GravityWavefront[] = [];
 
   constructor({ color = 0x74d7ff, opacity = 0.22 }: SpacetimeLatticeOptions = {}) {
     this.group = new THREE.Group();
@@ -135,8 +160,48 @@ export class SpacetimeLattice {
     });
   }
 
+  setGravityWavesEnabled(enabled: boolean): void {
+    this.waveEnabled = enabled;
+    this.levels.forEach((level) => {
+      this.getUniforms(level.material).uWaveEnabled.value = enabled ? 1 : 0;
+    });
+  }
+
+  setGravityWaveIntensity(intensity: number): void {
+    this.waveIntensity = Math.max(intensity, 0);
+    this.levels.forEach((level) => {
+      this.getUniforms(level.material).uWaveIntensity.value = this.waveIntensity;
+    });
+  }
+
+  addGravityWavefront(wavefront: GravityWavefront): void {
+    if (!this.waveEnabled || wavefront.amplitude <= 0) return;
+
+    this.wavefronts.push({
+      origin: wavefront.origin.clone(),
+      startSeconds: wavefront.startSeconds,
+      amplitude: wavefront.amplitude,
+      speed: wavefront.speed,
+      width: wavefront.width,
+    });
+
+    if (this.wavefronts.length > MAX_GRAVITY_WAVEFRONTS) {
+      this.wavefronts.splice(0, this.wavefronts.length - MAX_GRAVITY_WAVEFRONTS);
+    }
+  }
+
   update(massSources: MassSource[], elapsedSeconds = 0): void {
     const shaderSources = massSources.slice(0, MAX_SHADER_MASS_SOURCES);
+    const visibleWavefronts = this.wavefronts
+      .filter((wavefront) => {
+        const age = elapsedSeconds - wavefront.startSeconds;
+        return age >= 0 && age * wavefront.speed < 1400;
+      })
+      .slice(-MAX_GRAVITY_WAVEFRONTS);
+
+    if (visibleWavefronts.length !== this.wavefronts.length) {
+      this.wavefronts.splice(0, this.wavefronts.length, ...visibleWavefronts);
+    }
 
     shaderSources.forEach((source, index) => {
       const {
@@ -154,12 +219,33 @@ export class SpacetimeLattice {
       this.massParams[i].set(0, 1, 1, 0);
     }
 
+    visibleWavefronts.forEach((wavefront, index) => {
+      this.waveOrigins[index].set(
+        wavefront.origin.x,
+        wavefront.origin.y,
+        wavefront.origin.z,
+        wavefront.startSeconds,
+      );
+      this.waveParams[index].set(
+        wavefront.amplitude,
+        wavefront.speed,
+        wavefront.width,
+        0,
+      );
+    });
+
+    for (let i = visibleWavefronts.length; i < MAX_GRAVITY_WAVEFRONTS; i += 1) {
+      this.waveOrigins[i].set(9999, 9999, 9999, -9999);
+      this.waveParams[i].set(0, 1, 1, 0);
+    }
+
     this.levels.forEach((level) => {
       if (!level.group.visible) return;
 
       const uniforms = this.getUniforms(level.material);
       uniforms.uElapsedSeconds.value = elapsedSeconds;
       uniforms.uMassCount.value = shaderSources.length;
+      uniforms.uWaveCount.value = visibleWavefronts.length;
     });
   }
 
@@ -230,6 +316,11 @@ export class SpacetimeLattice {
       uMassCount: { value: 0 },
       uMassPositions: { value: this.massPositions },
       uMassParams: { value: this.massParams },
+      uWaveCount: { value: 0 },
+      uWaveEnabled: { value: this.waveEnabled ? 1 : 0 },
+      uWaveIntensity: { value: this.waveIntensity },
+      uWaveOrigins: { value: this.waveOrigins },
+      uWaveParams: { value: this.waveParams },
     };
 
     const material = new THREE.ShaderMaterial({
@@ -239,11 +330,17 @@ export class SpacetimeLattice {
       blending: THREE.AdditiveBlending,
       vertexShader: `
         #define MAX_MASS_SOURCES ${MAX_SHADER_MASS_SOURCES}
+        #define MAX_GRAVITY_WAVEFRONTS ${MAX_GRAVITY_WAVEFRONTS}
 
         uniform float uElapsedSeconds;
         uniform int uMassCount;
         uniform vec3 uMassPositions[MAX_MASS_SOURCES];
         uniform vec4 uMassParams[MAX_MASS_SOURCES];
+        uniform int uWaveCount;
+        uniform float uWaveEnabled;
+        uniform float uWaveIntensity;
+        uniform vec4 uWaveOrigins[MAX_GRAVITY_WAVEFRONTS];
+        uniform vec4 uWaveParams[MAX_GRAVITY_WAVEFRONTS];
 
         varying float vStrain;
 
@@ -282,7 +379,34 @@ export class SpacetimeLattice {
             }
           }
 
-          vStrain = clamp(totalStrain * 3.8, 0.0, 1.0);
+          float waveStrain = 0.0;
+
+          if (uWaveEnabled > 0.5) {
+            for (int i = 0; i < MAX_GRAVITY_WAVEFRONTS; i++) {
+              if (i >= uWaveCount) {
+                break;
+              }
+
+              vec4 originAndStart = uWaveOrigins[i];
+              vec4 wave = uWaveParams[i];
+              float age = uElapsedSeconds - originAndStart.w;
+
+              if (age > 0.0) {
+                vec3 fromWave = position - originAndStart.xyz;
+                float distanceToWave = max(length(fromWave), 0.001);
+                float waveRadius = age * wave.y;
+                float shell = exp(-pow((distanceToWave - waveRadius) / wave.z, 2.0));
+                float falloff = 1.0 / (1.0 + waveRadius * 0.028);
+                float phase = sin((distanceToWave - waveRadius) * 4.4);
+                float pulse = wave.x * uWaveIntensity * shell * falloff * phase;
+
+                warped += normalize(fromWave) * pulse;
+                waveStrain += abs(wave.x) * uWaveIntensity * shell * falloff;
+              }
+            }
+          }
+
+          vStrain = clamp(totalStrain * 3.8 + waveStrain * 14.0, 0.0, 1.0);
           gl_Position = projectionMatrix * modelViewMatrix * vec4(warped, 1.0);
         }
       `,

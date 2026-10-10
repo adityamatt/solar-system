@@ -11,6 +11,7 @@ A Three.js + Vite visualization of the solar system with an interactive 3D latti
 - Ephemeris-based body positions initialized from the current simulation date.
 - Elliptical orbit/path rendering with optional visibility controls.
 - Relativity-inspired lattice compression tied to gravitational influence.
+- Finite-speed gravitational wavefront overlay for visualizing changing mass fields.
 - Virtualized grid rendering for smoother zooming across large scales.
 - Distance-based illumination controls, including non-linear brightness scaling.
 - Collapsible HUD with editable simulation, lighting, orbit, and grid settings.

@@ -79,6 +79,10 @@ app.innerHTML = `
             <dd><span id="grid-thickness-label">1.0</span>x</dd>
           </div>
           <div>
+            <dt>Gravity waves</dt>
+            <dd><span id="gravity-wave-label">1.0</span>x</dd>
+          </div>
+          <div>
             <dt>Camera focus</dt>
             <dd><span id="focus-label">Sun</span></dd>
           </div>
@@ -126,6 +130,19 @@ app.innerHTML = `
           <span>Grid</span>
           <input id="grid-visibility-control" type="checkbox" checked />
         </label>
+        <label class="toggle-row" for="gravity-wave-control">
+          <span>Waves</span>
+          <input id="gravity-wave-control" type="checkbox" checked />
+        </label>
+        <div class="control-row slider-row">
+          <label for="gravity-wave-intensity-control">Wave</label>
+          <input id="gravity-wave-intensity-control" type="range" min="0" max="8" step="0.1" value="1" />
+          <div class="slider-bounds" aria-label="Gravity wave intensity range settings">
+            <label>Min <input id="gravity-wave-min-control" type="number" step="0.1" value="0" /></label>
+            <label>Value <input id="gravity-wave-value-control" type="number" step="0.1" value="1" /></label>
+            <label>Max <input id="gravity-wave-max-control" type="number" step="0.5" value="8" /></label>
+          </div>
+        </div>
       </div>
     </section>
   </main>
@@ -215,6 +232,11 @@ const gridThicknessMinControl = document.querySelector<HTMLInputElement>('#grid-
 const gridThicknessValueControl = document.querySelector<HTMLInputElement>('#grid-thickness-value-control');
 const gridThicknessMaxControl = document.querySelector<HTMLInputElement>('#grid-thickness-max-control');
 const gridVisibilityControl = document.querySelector<HTMLInputElement>('#grid-visibility-control');
+const gravityWaveControl = document.querySelector<HTMLInputElement>('#gravity-wave-control');
+const gravityWaveIntensityControl = document.querySelector<HTMLInputElement>('#gravity-wave-intensity-control');
+const gravityWaveMinControl = document.querySelector<HTMLInputElement>('#gravity-wave-min-control');
+const gravityWaveValueControl = document.querySelector<HTMLInputElement>('#gravity-wave-value-control');
+const gravityWaveMaxControl = document.querySelector<HTMLInputElement>('#gravity-wave-max-control');
 const focusControl = document.querySelector<HTMLSelectElement>('#focus-control');
 const hud = document.querySelector<HTMLElement>('.hud');
 const hudBody = document.querySelector<HTMLElement>('#hud-body');
@@ -226,6 +248,7 @@ const earthFluxLabel = document.querySelector<HTMLSpanElement>('#earth-flux');
 const moonPhaseLabel = document.querySelector<HTMLSpanElement>('#moon-phase');
 const illuminationLabel = document.querySelector<HTMLSpanElement>('#illumination-label');
 const gridThicknessLabel = document.querySelector<HTMLSpanElement>('#grid-thickness-label');
+const gravityWaveLabel = document.querySelector<HTMLSpanElement>('#gravity-wave-label');
 const focusLabel = document.querySelector<HTMLSpanElement>('#focus-label');
 if (
   !speedControl ||
@@ -243,6 +266,11 @@ if (
   !gridThicknessValueControl ||
   !gridThicknessMaxControl ||
   !gridVisibilityControl ||
+  !gravityWaveControl ||
+  !gravityWaveIntensityControl ||
+  !gravityWaveMinControl ||
+  !gravityWaveValueControl ||
+  !gravityWaveMaxControl ||
   !focusControl ||
   !hud ||
   !hudBody ||
@@ -254,6 +282,7 @@ if (
   !moonPhaseLabel ||
   !illuminationLabel ||
   !gridThicknessLabel ||
+  !gravityWaveLabel ||
   !focusLabel
 ) {
   throw new Error('Missing simulation control elements');
@@ -266,7 +295,11 @@ let focusName = 'Sun';
 let elapsedSeconds = 0;
 let lastIlluminationUpdate = -Infinity;
 let lastTelemetryUpdate = -Infinity;
+let lastGravityWaveEmission = -Infinity;
 let cachedEarthSolarFlux = 1;
+const previousWaveSourcePositions: THREE.Vector3[] = [];
+const GRAVITY_WAVE_EMISSION_INTERVAL_SECONDS = 0.65;
+const VISUAL_GRAVITY_WAVE_SPEED = 145;
 
 focusControl.innerHTML = focusOptions
   .map((name) => `<option value="${name}">${name}</option>`)
@@ -332,6 +365,24 @@ gridVisibilityControl.addEventListener('change', () => {
   lattice.group.visible = gridVisibilityControl.checked;
 });
 
+gravityWaveControl.addEventListener('change', () => {
+  lattice.setGravityWavesEnabled(gravityWaveControl.checked);
+});
+
+bindEditableSlider({
+  range: gravityWaveIntensityControl,
+  minInput: gravityWaveMinControl,
+  valueInput: gravityWaveValueControl,
+  maxInput: gravityWaveMaxControl,
+  minGap: 0.1,
+  fallbackMin: 0,
+  fallbackMax: 8,
+  onValueChange: (value) => {
+    lattice.setGravityWaveIntensity(value);
+    gravityWaveLabel.textContent = value.toFixed(1);
+  },
+});
+
 hudToggle.addEventListener('click', () => {
   const collapsed = hud.classList.toggle('is-collapsed');
   hudBody.setAttribute('aria-hidden', String(collapsed));
@@ -384,7 +435,7 @@ renderer.setAnimationLoop((timestamp: number) => {
   starField.rotation.y += deltaSeconds * 0.006;
   controls.target.copy(focusPosition);
   lattice.fitToCamera(camera, sun.position);
-  lattice.update([
+  const massSources = [
     {
       position: sun.position,
       gravitationalRadiusScale: getDisplayGravitationalRadius(BODIES.sun.massRatioToSun),
@@ -393,7 +444,9 @@ renderer.setAnimationLoop((timestamp: number) => {
       maxContraction: getMetricMaxContraction(BODIES.sun.massRatioToSun),
     },
     ...solarSystem.getMassSources(),
-  ], elapsedSeconds);
+  ];
+  emitGravityWavefronts(massSources, elapsedSeconds);
+  lattice.update(massSources, elapsedSeconds);
 
   controls.update();
   renderer.render(scene, camera);
@@ -405,6 +458,52 @@ function getFocusPosition(name: string): THREE.Vector3 {
   }
 
   return solarSystem.findPlanet(name).position.clone();
+}
+
+function emitGravityWavefronts(
+  massSources: Array<{
+    position: THREE.Vector3;
+    gravitationalRadiusScale: number;
+  }>,
+  currentSeconds: number,
+): void {
+  if (gravityWaveControl?.checked !== true) return;
+  if (currentSeconds - lastGravityWaveEmission < GRAVITY_WAVE_EMISSION_INTERVAL_SECONDS) return;
+
+  const sampleSeconds =
+    lastGravityWaveEmission === -Infinity
+      ? GRAVITY_WAVE_EMISSION_INTERVAL_SECONDS
+      : currentSeconds - lastGravityWaveEmission;
+
+  massSources.forEach((source, index) => {
+    const previousPosition = previousWaveSourcePositions[index];
+
+    if (!previousPosition) {
+      previousWaveSourcePositions[index] = source.position.clone();
+      return;
+    }
+
+    const distanceMoved = source.position.distanceTo(previousPosition);
+    previousPosition.copy(source.position);
+
+    if (index === 0 || source.gravitationalRadiusScale < 0.000001 || distanceMoved < 0.012) {
+      return;
+    }
+
+    const apparentSpeed = distanceMoved / Math.max(sampleSeconds, 0.001);
+    const massWeight = Math.pow(source.gravitationalRadiusScale / 0.00003, 0.25);
+    const amplitude = THREE.MathUtils.clamp(0.004 + apparentSpeed * massWeight * 0.018, 0.004, 0.11);
+
+    lattice.addGravityWavefront({
+      origin: source.position,
+      startSeconds: currentSeconds,
+      amplitude,
+      speed: VISUAL_GRAVITY_WAVE_SPEED,
+      width: THREE.MathUtils.lerp(4.5, 11, THREE.MathUtils.clamp(amplitude / 0.08, 0, 1)),
+    });
+  });
+
+  lastGravityWaveEmission = currentSeconds;
 }
 
 function resizeRenderer(): void {
