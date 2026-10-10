@@ -2,13 +2,19 @@ import './style.css';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { createCoordinateFrame } from './solarSystem/CoordinateFrame';
-import { getDaysSinceJ2000 } from './solarSystem/Ephemeris';
+import { getDateFromDaysSinceJ2000, getDaysSinceJ2000 } from './solarSystem/Ephemeris';
 import { IlluminationEngine } from './solarSystem/IlluminationEngine';
 import { getEarthMoonState } from './solarSystem/LunarEphemeris';
 import { Planet } from './solarSystem/Planet';
 import { createSolarSystemComposite } from './solarSystem/SolarSystemComposite';
 import { SpacetimeLattice } from './solarSystem/SpacetimeLattice';
-import { BODIES, DEFAULT_DAYS_PER_SECOND } from './solarSystem/constants';
+import {
+  BODIES,
+  DEFAULT_DAYS_PER_SECOND,
+  getDisplayGravitationalRadius,
+  getMetricMaxContraction,
+  getMetricSoftening,
+} from './solarSystem/constants';
 
 const app = document.querySelector<HTMLDivElement>('#app');
 if (!app) {
@@ -18,6 +24,24 @@ if (!app) {
 app.innerHTML = `
   <main class="simulation-shell">
     <canvas id="solar-canvas" aria-label="General relativity inspired solar system animation"></canvas>
+    <aside class="telemetry" aria-label="Simulation telemetry">
+      <div>
+        <p class="telemetry-label">Simulation time</p>
+        <time id="simulation-time" datetime="">--</time>
+      </div>
+      <div class="body-locations">
+        <p class="telemetry-label">Heliocentric body locations</p>
+        <div class="location-table" aria-label="Body positions in astronomical units">
+          <div class="location-heading" aria-hidden="true">
+            <span>Body</span>
+            <span>X</span>
+            <span>Y</span>
+            <span>Z</span>
+          </div>
+          <div id="body-location-list"></div>
+        </div>
+      </div>
+    </aside>
     <section class="hud" aria-label="Simulation controls">
       <div class="hud-header">
         <div>
@@ -51,6 +75,10 @@ app.innerHTML = `
             <dd><span id="illumination-label">1.0</span>x curve</dd>
           </div>
           <div>
+            <dt>Grid thickness</dt>
+            <dd><span id="grid-thickness-label">1.0</span>x</dd>
+          </div>
+          <div>
             <dt>Camera focus</dt>
             <dd><span id="focus-label">Sun</span></dd>
           </div>
@@ -59,14 +87,24 @@ app.innerHTML = `
           <span>Focus</span>
           <select id="focus-control"></select>
         </label>
-        <label class="control-row" for="speed-control">
-          <span>Speed</span>
-          <input id="speed-control" type="range" min="1" max="90" value="${DEFAULT_DAYS_PER_SECOND}" />
-        </label>
-        <label class="control-row" for="illumination-control">
-          <span>Light</span>
+        <div class="control-row slider-row">
+          <label for="speed-control">Speed</label>
+          <input id="speed-control" type="range" min="1" max="90" step="1" value="${DEFAULT_DAYS_PER_SECOND}" />
+          <div class="slider-bounds" aria-label="Speed range settings">
+            <label>Min <input id="speed-min-control" type="number" step="1" value="1" /></label>
+            <label>Value <input id="speed-value-control" type="number" step="1" value="${DEFAULT_DAYS_PER_SECOND}" /></label>
+            <label>Max <input id="speed-max-control" type="number" step="1" value="90" /></label>
+          </div>
+        </div>
+        <div class="control-row slider-row">
+          <label for="illumination-control">Light</label>
           <input id="illumination-control" type="range" min="0.2" max="50" step="0.2" value="1" />
-        </label>
+          <div class="slider-bounds" aria-label="Light range settings">
+            <label>Min <input id="illumination-min-control" type="number" step="0.1" value="0.2" /></label>
+            <label>Value <input id="illumination-value-control" type="number" step="0.1" value="1" /></label>
+            <label>Max <input id="illumination-max-control" type="number" step="1" value="50" /></label>
+          </div>
+        </div>
         <label class="toggle-row" for="orbit-path-control">
           <span>Paths</span>
           <input id="orbit-path-control" type="checkbox" checked />
@@ -75,6 +113,15 @@ app.innerHTML = `
           <span>Grid</span>
           <input id="grid-color-control" type="color" value="#63d4ff" />
         </label>
+        <div class="control-row slider-row">
+          <label for="grid-thickness-control">Lines</label>
+          <input id="grid-thickness-control" type="range" min="0.25" max="10" step="0.05" value="1" />
+          <div class="slider-bounds" aria-label="Grid line thickness range settings">
+            <label>Min <input id="grid-thickness-min-control" type="number" step="0.05" value="0.25" /></label>
+            <label>Value <input id="grid-thickness-value-control" type="number" step="0.05" value="1" /></label>
+            <label>Max <input id="grid-thickness-max-control" type="number" step="0.5" value="10" /></label>
+          </div>
+        </div>
         <label class="toggle-row" for="grid-visibility-control">
           <span>Grid</span>
           <input id="grid-visibility-control" type="checkbox" checked />
@@ -154,42 +201,71 @@ const focusOptions = ['Sun', ...solarSystem.getPlanetNames()];
 const timer = new THREE.Timer();
 timer.connect(document);
 const speedControl = document.querySelector<HTMLInputElement>('#speed-control');
+const speedMinControl = document.querySelector<HTMLInputElement>('#speed-min-control');
+const speedValueControl = document.querySelector<HTMLInputElement>('#speed-value-control');
+const speedMaxControl = document.querySelector<HTMLInputElement>('#speed-max-control');
 const illuminationControl = document.querySelector<HTMLInputElement>('#illumination-control');
+const illuminationMinControl = document.querySelector<HTMLInputElement>('#illumination-min-control');
+const illuminationValueControl = document.querySelector<HTMLInputElement>('#illumination-value-control');
+const illuminationMaxControl = document.querySelector<HTMLInputElement>('#illumination-max-control');
 const orbitPathControl = document.querySelector<HTMLInputElement>('#orbit-path-control');
 const gridColorControl = document.querySelector<HTMLInputElement>('#grid-color-control');
+const gridThicknessControl = document.querySelector<HTMLInputElement>('#grid-thickness-control');
+const gridThicknessMinControl = document.querySelector<HTMLInputElement>('#grid-thickness-min-control');
+const gridThicknessValueControl = document.querySelector<HTMLInputElement>('#grid-thickness-value-control');
+const gridThicknessMaxControl = document.querySelector<HTMLInputElement>('#grid-thickness-max-control');
 const gridVisibilityControl = document.querySelector<HTMLInputElement>('#grid-visibility-control');
 const focusControl = document.querySelector<HTMLSelectElement>('#focus-control');
 const hud = document.querySelector<HTMLElement>('.hud');
 const hudBody = document.querySelector<HTMLElement>('#hud-body');
 const hudToggle = document.querySelector<HTMLButtonElement>('#hud-toggle');
+const simulationTimeLabel = document.querySelector<HTMLTimeElement>('#simulation-time');
+const bodyLocationList = document.querySelector<HTMLDivElement>('#body-location-list');
 const timeScaleLabel = document.querySelector<HTMLSpanElement>('#time-scale');
 const earthFluxLabel = document.querySelector<HTMLSpanElement>('#earth-flux');
 const moonPhaseLabel = document.querySelector<HTMLSpanElement>('#moon-phase');
 const illuminationLabel = document.querySelector<HTMLSpanElement>('#illumination-label');
+const gridThicknessLabel = document.querySelector<HTMLSpanElement>('#grid-thickness-label');
 const focusLabel = document.querySelector<HTMLSpanElement>('#focus-label');
 if (
   !speedControl ||
+  !speedMinControl ||
+  !speedValueControl ||
+  !speedMaxControl ||
   !illuminationControl ||
+  !illuminationMinControl ||
+  !illuminationValueControl ||
+  !illuminationMaxControl ||
   !orbitPathControl ||
   !gridColorControl ||
+  !gridThicknessControl ||
+  !gridThicknessMinControl ||
+  !gridThicknessValueControl ||
+  !gridThicknessMaxControl ||
   !gridVisibilityControl ||
   !focusControl ||
   !hud ||
   !hudBody ||
   !hudToggle ||
+  !simulationTimeLabel ||
+  !bodyLocationList ||
   !timeScaleLabel ||
   !earthFluxLabel ||
   !moonPhaseLabel ||
   !illuminationLabel ||
+  !gridThicknessLabel ||
   !focusLabel
 ) {
   throw new Error('Missing simulation control elements');
 }
+const simulationTimeOutput = simulationTimeLabel;
+const bodyLocationOutput = bodyLocationList;
 let simulatedDays = getDaysSinceJ2000(new Date());
 let daysPerSecond = DEFAULT_DAYS_PER_SECOND;
 let focusName = 'Sun';
 let elapsedSeconds = 0;
 let lastIlluminationUpdate = -Infinity;
+let lastTelemetryUpdate = -Infinity;
 let cachedEarthSolarFlux = 1;
 
 focusControl.innerHTML = focusOptions
@@ -199,19 +275,35 @@ focusControl.innerHTML = focusOptions
 sun.update(simulatedDays);
 solarSystem.update(simulatedDays);
 solarSystem.rebuildTrajectoryPath(simulatedDays);
+updateTelemetry();
 
-speedControl.addEventListener('input', (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  daysPerSecond = Number(target.value);
-  timeScaleLabel.textContent = daysPerSecond.toString();
+bindEditableSlider({
+  range: speedControl,
+  minInput: speedMinControl,
+  valueInput: speedValueControl,
+  maxInput: speedMaxControl,
+  minGap: 1,
+  fallbackMin: 1,
+  fallbackMax: 90,
+  onValueChange: (value) => {
+    daysPerSecond = value;
+    timeScaleLabel.textContent = Math.round(value).toString();
+  },
 });
 
-illuminationControl.addEventListener('input', (event: Event) => {
-  const target = event.target as HTMLInputElement;
-  const multiplier = Number(target.value);
-  illuminationEngine.setMultiplier(multiplier);
-  illuminationLabel.textContent = multiplier.toFixed(1);
-  lastIlluminationUpdate = -Infinity;
+bindEditableSlider({
+  range: illuminationControl,
+  minInput: illuminationMinControl,
+  valueInput: illuminationValueControl,
+  maxInput: illuminationMaxControl,
+  minGap: 0.1,
+  fallbackMin: 0.2,
+  fallbackMax: 50,
+  onValueChange: (value) => {
+    illuminationEngine.setMultiplier(value);
+    illuminationLabel.textContent = value.toFixed(1);
+    lastIlluminationUpdate = -Infinity;
+  },
 });
 
 orbitPathControl.addEventListener('change', () => {
@@ -220,6 +312,20 @@ orbitPathControl.addEventListener('change', () => {
 
 gridColorControl.addEventListener('input', () => {
   lattice.setColor(gridColorControl.value);
+});
+
+bindEditableSlider({
+  range: gridThicknessControl,
+  minInput: gridThicknessMinControl,
+  valueInput: gridThicknessValueControl,
+  maxInput: gridThicknessMaxControl,
+  minGap: 0.05,
+  fallbackMin: 0.25,
+  fallbackMax: 10,
+  onValueChange: (value) => {
+    lattice.setLineThickness(value);
+    gridThicknessLabel.textContent = value.toFixed(1);
+  },
 });
 
 gridVisibilityControl.addEventListener('change', () => {
@@ -268,6 +374,11 @@ renderer.setAnimationLoop((timestamp: number) => {
     lastIlluminationUpdate = elapsedSeconds;
   }
 
+  if (elapsedSeconds - lastTelemetryUpdate > 0.25) {
+    updateTelemetry();
+    lastTelemetryUpdate = elapsedSeconds;
+  }
+
   const focusPosition = getFocusPosition(focusName);
 
   starField.rotation.y += deltaSeconds * 0.006;
@@ -276,11 +387,10 @@ renderer.setAnimationLoop((timestamp: number) => {
   lattice.update([
     {
       position: sun.position,
-      compactness: 7.5,
+      gravitationalRadiusScale: getDisplayGravitationalRadius(BODIES.sun.massRatioToSun),
       radius: BODIES.sun.radius,
-      softening: 2.8,
-      maxContraction: 0.46,
-      flow: 0.03,
+      softening: getMetricSoftening(BODIES.sun.radius),
+      maxContraction: getMetricMaxContraction(BODIES.sun.massRatioToSun),
     },
     ...solarSystem.getMassSources(),
   ], elapsedSeconds);
@@ -309,6 +419,132 @@ function setOrbitPathsVisible(visible: boolean): void {
       object.visible = visible;
     }
   });
+}
+
+interface EditableSliderOptions {
+  range: HTMLInputElement;
+  minInput: HTMLInputElement;
+  valueInput: HTMLInputElement;
+  maxInput: HTMLInputElement;
+  minGap: number;
+  fallbackMin: number;
+  fallbackMax: number;
+  onValueChange(value: number): void;
+}
+
+function bindEditableSlider({
+  range,
+  minInput,
+  valueInput,
+  maxInput,
+  minGap,
+  fallbackMin,
+  fallbackMax,
+  onValueChange,
+}: EditableSliderOptions): void {
+  const sanitizeBounds = (): { min: number; max: number } => {
+    let min = Number(minInput.value);
+    let max = Number(maxInput.value);
+
+    if (!Number.isFinite(min)) min = fallbackMin;
+    if (!Number.isFinite(max)) max = fallbackMax;
+    if (max <= min) max = min + minGap;
+
+    minInput.value = formatControlNumber(min);
+    maxInput.value = formatControlNumber(max);
+    range.min = min.toString();
+    range.max = max.toString();
+
+    return { min, max };
+  };
+
+  const setValue = (nextValue: number): void => {
+    const { min, max } = sanitizeBounds();
+    const value = THREE.MathUtils.clamp(
+      Number.isFinite(nextValue) ? nextValue : Number(range.value),
+      min,
+      max,
+    );
+
+    range.value = value.toString();
+    valueInput.value = formatControlNumber(value);
+    onValueChange(value);
+  };
+
+  range.addEventListener('input', () => {
+    setValue(Number(range.value));
+  });
+
+  valueInput.addEventListener('change', () => {
+    setValue(Number(valueInput.value));
+  });
+
+  minInput.addEventListener('change', () => {
+    setValue(Number(valueInput.value));
+  });
+
+  maxInput.addEventListener('change', () => {
+    setValue(Number(valueInput.value));
+  });
+
+  setValue(Number(range.value));
+}
+
+function updateTelemetry(): void {
+  const simulationDate = getDateFromDaysSinceJ2000(simulatedDays);
+  simulationTimeOutput.dateTime = simulationDate.toISOString();
+  simulationTimeOutput.textContent = formatSimulationDate(simulationDate);
+
+  bodyLocationOutput.innerHTML = getBodyLocations()
+    .map(
+      ({ name, position }) => `
+        <div class="location-row">
+          <span>${name}</span>
+          <span>${formatAu(position.x)}</span>
+          <span>${formatAu(position.y)}</span>
+          <span>${formatAu(position.z)}</span>
+        </div>
+      `,
+    )
+    .join('');
+}
+
+function getBodyLocations(): Array<{ name: string; position: THREE.Vector3 }> {
+  return [
+    { name: 'Sun', position: scenePositionToAu(sun.position) },
+    ...solarSystem.getPlanetNames().map((name) => ({
+      name,
+      position: scenePositionToAu(solarSystem.findPlanet(name).position),
+    })),
+  ];
+}
+
+function scenePositionToAu(position: THREE.Vector3): THREE.Vector3 {
+  return new THREE.Vector3(
+    position.x / BODIES.earth.orbitRadius,
+    position.z / BODIES.earth.orbitRadius,
+    position.y / BODIES.earth.orbitRadius,
+  );
+}
+
+function formatSimulationDate(date: Date): string {
+  return new Intl.DateTimeFormat(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZoneName: 'short',
+  }).format(date);
+}
+
+function formatAu(value: number): string {
+  return Math.abs(value) < 0.0005 ? '0.000' : value.toFixed(3);
+}
+
+function formatControlNumber(value: number): string {
+  return Number.isInteger(value) ? value.toString() : Number(value.toFixed(3)).toString();
 }
 
 function createStarField(): THREE.Points<THREE.BufferGeometry, THREE.PointsMaterial> {

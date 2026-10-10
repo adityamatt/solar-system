@@ -1,7 +1,13 @@
 import * as THREE from 'three';
 import { Planet } from '../Planet';
 import type { MassSource, PlanetContract } from '../PlanetInterface';
-import { BODIES, type BodyConfig, EARTH_DISPLAY_RADIUS } from '../constants';
+import {
+  BODIES,
+  type BodyConfig,
+  getDisplayGravitationalRadius,
+  getMetricMaxContraction,
+  getMetricSoftening,
+} from '../constants';
 
 export interface SolarPlanetOptions {
   body: BodyConfig;
@@ -9,17 +15,12 @@ export interface SolarPlanetOptions {
   secondaryColor?: THREE.ColorRepresentation;
   orbitColor?: THREE.ColorRepresentation;
   material?: THREE.MeshStandardMaterial;
-  compactness?: number;
-  softening?: number;
-  maxContraction?: number;
-  flow?: number;
 }
 
 export class SolarPlanet extends Planet implements PlanetContract {
-  private readonly compactness: number;
+  private readonly gravitationalRadiusScale: number;
   private readonly softening: number;
   private readonly maxContraction: number;
-  private readonly flow: number;
 
   constructor({
     body,
@@ -27,10 +28,6 @@ export class SolarPlanet extends Planet implements PlanetContract {
     secondaryColor,
     orbitColor = 0x4d7895,
     material,
-    compactness,
-    softening,
-    maxContraction,
-    flow = 0.03,
   }: SolarPlanetOptions) {
     super({
       ...body,
@@ -47,10 +44,9 @@ export class SolarPlanet extends Planet implements PlanetContract {
         }),
     });
 
-    this.compactness = compactness ?? Math.max(0.18, (body.radius / EARTH_DISPLAY_RADIUS) * 0.34);
-    this.softening = softening ?? Math.max(0.55, body.radius * 1.35);
-    this.maxContraction = maxContraction ?? Math.min(0.2, 0.08 + body.radius * 0.025);
-    this.flow = flow;
+    this.gravitationalRadiusScale = getDisplayGravitationalRadius(body.massRatioToSun);
+    this.softening = getMetricSoftening(body.radius);
+    this.maxContraction = getMetricMaxContraction(body.massRatioToSun);
   }
 
   updateIllumination(sunPosition: THREE.Vector3): number {
@@ -60,11 +56,10 @@ export class SolarPlanet extends Planet implements PlanetContract {
   getMassSource(): MassSource {
     return {
       position: this.position,
-      compactness: this.compactness,
+      gravitationalRadiusScale: this.gravitationalRadiusScale,
       radius: this.radius,
       softening: this.softening,
       maxContraction: this.maxContraction,
-      flow: this.flow,
     };
   }
 

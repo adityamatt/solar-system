@@ -9,9 +9,6 @@ export class Mars extends SolarPlanet {
       color: 0xb85c3c,
       secondaryColor: 0xe0a06e,
       orbitColor: 0xd96d4a,
-      compactness: 0.42,
-      maxContraction: 0.13,
-      flow: 0.04,
     });
 
     this.addMoon(
@@ -22,7 +19,6 @@ export class Mars extends SolarPlanet {
         orbitRadius: 0.78,
         orbitalPeriodDays: 0.319,
         color: 0x8c7a6a,
-        compactness: 0.015,
       }),
     );
     this.addMoon(
@@ -34,7 +30,6 @@ export class Mars extends SolarPlanet {
         orbitalPeriodDays: 1.264,
         color: 0x9b8a78,
         initialAngle: 1.7,
-        compactness: 0.01,
       }),
     );
   }

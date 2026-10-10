@@ -18,6 +18,7 @@ interface LatticeLevelConfig {
   minDistance: number;
   maxDistance: number;
   opacity: number;
+  spacingBias: number;
 }
 
 interface LatticeLevel {
@@ -34,7 +35,6 @@ interface LatticeUniforms extends Record<string, THREE.IUniform> {
   uMassCount: { value: number };
   uMassPositions: { value: THREE.Vector3[] };
   uMassParams: { value: THREE.Vector4[] };
-  uMassFlow: { value: number[] };
 }
 
 const LATTICE_LEVELS: LatticeLevelConfig[] = [
@@ -46,6 +46,7 @@ const LATTICE_LEVELS: LatticeLevelConfig[] = [
     minDistance: 0,
     maxDistance: 95,
     opacity: 1,
+    spacingBias: 1,
   },
   {
     name: 'medium planetary lattice',
@@ -55,6 +56,7 @@ const LATTICE_LEVELS: LatticeLevelConfig[] = [
     minDistance: 55,
     maxDistance: 310,
     opacity: 0.74,
+    spacingBias: 1,
   },
   {
     name: 'coarse solar lattice',
@@ -64,6 +66,7 @@ const LATTICE_LEVELS: LatticeLevelConfig[] = [
     minDistance: 210,
     maxDistance: Infinity,
     opacity: 0.52,
+    spacingBias: 1,
   },
 ];
 
@@ -74,6 +77,7 @@ export class SpacetimeLattice {
 
   private readonly levels: LatticeLevel[] = [];
   private readonly baseOpacity: number;
+  private lineThickness = 1;
   private readonly massPositions = Array.from(
     { length: MAX_SHADER_MASS_SOURCES },
     () => new THREE.Vector3(9999, 9999, 9999),
@@ -82,7 +86,6 @@ export class SpacetimeLattice {
     { length: MAX_SHADER_MASS_SOURCES },
     () => new THREE.Vector4(0, 1, 1, 0),
   );
-  private readonly massFlow = Array.from({ length: MAX_SHADER_MASS_SOURCES }, () => 0);
 
   constructor({ color = 0x74d7ff, opacity = 0.22 }: SpacetimeLatticeOptions = {}) {
     this.group = new THREE.Group();
@@ -110,7 +113,8 @@ export class SpacetimeLattice {
       const visibility = Math.min(fadeIn, fadeOut);
 
       level.group.visible = visibility > 0.02;
-      this.getUniforms(level.material).uOpacity.value = this.baseOpacity * opacity * visibility;
+      this.getUniforms(level.material).uOpacity.value =
+        this.baseOpacity * opacity * visibility * this.getOpacityThicknessScale();
     });
   }
 
@@ -121,20 +125,33 @@ export class SpacetimeLattice {
     });
   }
 
+  setLineThickness(thickness: number): void {
+    this.lineThickness = Math.max(thickness, 0.01);
+    this.levels.forEach((level) => {
+      const material = level.material as THREE.ShaderMaterial & { linewidth?: number };
+      material.linewidth = this.lineThickness;
+      this.getUniforms(level.material).uOpacity.value =
+        this.baseOpacity * level.config.opacity * this.getOpacityThicknessScale();
+    });
+  }
+
   update(massSources: MassSource[], elapsedSeconds = 0): void {
     const shaderSources = massSources.slice(0, MAX_SHADER_MASS_SOURCES);
 
     shaderSources.forEach((source, index) => {
-      const { compactness, radius, softening, maxContraction = 0.55, flow = 0 } = source;
+      const {
+        gravitationalRadiusScale,
+        radius,
+        softening,
+        maxContraction = 0.55,
+      } = source;
       this.massPositions[index].copy(source.position);
-      this.massParams[index].set(compactness, radius, softening, maxContraction);
-      this.massFlow[index] = flow;
+      this.massParams[index].set(gravitationalRadiusScale, radius, softening, maxContraction);
     });
 
     for (let i = shaderSources.length; i < MAX_SHADER_MASS_SOURCES; i += 1) {
       this.massPositions[i].set(9999, 9999, 9999);
       this.massParams[i].set(0, 1, 1, 0);
-      this.massFlow[i] = 0;
     }
 
     this.levels.forEach((level) => {
@@ -151,13 +168,12 @@ export class SpacetimeLattice {
     group.name = config.name;
     const material = this.createMaterial(config.opacity);
     const half = config.size / 2;
-    const step = config.size / config.divisions;
 
     AXES.forEach((axis) => {
       for (let a = 0; a <= config.divisions; a += 1) {
         for (let b = 0; b <= config.divisions; b += 1) {
-          const first = -half + a * step;
-          const second = -half + b * step;
+          const first = this.getMetricCoordinate(a, config.divisions, half, config.spacingBias);
+          const second = this.getMetricCoordinate(b, config.divisions, half, config.spacingBias);
           group.add(this.createLine(material, config, axis, first, second));
         }
       }
@@ -177,7 +193,7 @@ export class SpacetimeLattice {
     const positions = new Float32Array((config.samples + 1) * 3);
 
     for (let i = 0; i <= config.samples; i += 1) {
-      const run = -half + (i / config.samples) * config.size;
+      const run = this.getMetricCoordinate(i, config.samples, half, config.spacingBias * 0.82);
       const offset = i * 3;
 
       if (axis === 'x') {
@@ -214,10 +230,9 @@ export class SpacetimeLattice {
       uMassCount: { value: 0 },
       uMassPositions: { value: this.massPositions },
       uMassParams: { value: this.massParams },
-      uMassFlow: { value: this.massFlow },
     };
 
-    return new THREE.ShaderMaterial({
+    const material = new THREE.ShaderMaterial({
       uniforms,
       transparent: true,
       depthWrite: false,
@@ -229,7 +244,6 @@ export class SpacetimeLattice {
         uniform int uMassCount;
         uniform vec3 uMassPositions[MAX_MASS_SOURCES];
         uniform vec4 uMassParams[MAX_MASS_SOURCES];
-        uniform float uMassFlow[MAX_MASS_SOURCES];
 
         varying float vStrain;
 
@@ -245,20 +259,21 @@ export class SpacetimeLattice {
             vec3 relative = position - uMassPositions[i];
             float distanceToMass = max(length(relative), 0.001);
             vec4 params = uMassParams[i];
-            float compactness = params.x;
+            float gravitationalRadius = params.x;
             float radius = params.y;
             float softening = params.z;
             float maxContraction = params.w;
-            float flow = uMassFlow[i];
             float metricRadius = sqrt(distanceToMass * distanceToMass + softening * softening);
-            float weakFieldScale = inversesqrt(1.0 + compactness / metricRadius);
+            // Weak-field GR ordering: metric deviation scales with GM/(c^2 r).
+            // gravitationalRadius is the display-scaled GM/c^2 for this body.
+            float gravitationalPotential = gravitationalRadius / metricRadius;
+            float weakFieldScale = inversesqrt(1.0 + gravitationalPotential);
             float radialContraction = clamp(1.0 - weakFieldScale, 0.0, maxContraction);
             float surfaceLimit = max(distanceToMass - radius * 1.04, 0.0);
 
             if (surfaceLimit > 0.0) {
-              float flowRipple = 1.0 + flow * sin(uElapsedSeconds * 2.2 - distanceToMass * 0.85);
               vec3 displacement = normalize(relative) * -min(
-                distanceToMass * radialContraction * flowRipple,
+                distanceToMass * radialContraction,
                 surfaceLimit
               );
 
@@ -284,9 +299,26 @@ export class SpacetimeLattice {
         }
       `,
     });
+    (material as THREE.ShaderMaterial & { linewidth?: number }).linewidth = this.lineThickness;
+    return material;
   }
 
   private getUniforms(material: THREE.ShaderMaterial): LatticeUniforms {
     return material.uniforms as unknown as LatticeUniforms;
+  }
+
+  private getOpacityThicknessScale(): number {
+    return Math.max(0.05, this.lineThickness * 0.32);
+  }
+
+  private getMetricCoordinate(
+    index: number,
+    segments: number,
+    halfSize: number,
+    spacingBias: number,
+  ): number {
+    const normalized = (index / segments) * 2 - 1;
+    const sign = Math.sign(normalized);
+    return sign * halfSize * Math.pow(Math.abs(normalized), spacingBias);
   }
 }

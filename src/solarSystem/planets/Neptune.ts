@@ -10,9 +10,6 @@ export class Neptune extends SolarPlanet {
       color: 0x3266d3,
       secondaryColor: 0x87a8ff,
       orbitColor: 0x4a72ff,
-      compactness: 1.18,
-      maxContraction: 0.18,
-      flow: 0.03,
     });
 
     this.addMoon(
@@ -23,7 +20,6 @@ export class Neptune extends SolarPlanet {
         orbitRadius: 3.4,
         orbitalPeriodDays: -5.877,
         color: 0xd3d8cf,
-        compactness: 0.09,
       }),
     );
     this.addMoon(

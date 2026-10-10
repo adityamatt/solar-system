@@ -12,9 +12,6 @@ export class Saturn extends SolarPlanet {
       color: 0xd8c08a,
       secondaryColor: 0x9d8152,
       orbitColor: 0xd6bd86,
-      compactness: 1.45,
-      maxContraction: 0.2,
-      flow: 0.035,
     });
 
     this.axis.add(createRings(BODIES.saturn.radius));
@@ -81,7 +78,6 @@ export class Saturn extends SolarPlanet {
         orbitalPeriodDays: 15.945,
         color: 0xd29b4b,
         initialAngle: 3.25,
-        compactness: 0.11,
       }),
     );
     this.addMoon(

@@ -4,6 +4,12 @@ import { markReceivesSunlight } from '../IlluminationEngine';
 import { getEarthMoonState } from '../LunarEphemeris';
 import type { MoonContract } from '../MoonInterface';
 import type { MassSource } from '../PlanetInterface';
+import {
+  MASS_RATIO_TO_SUN,
+  getDisplayGravitationalRadius,
+  getMetricMaxContraction,
+  getMetricSoftening,
+} from '../constants';
 
 const FULL_TURN = Math.PI * 2;
 const MOON_PATH_SEGMENTS = 180;
@@ -16,7 +22,7 @@ export interface MoonOptions {
   orbitalPeriodDays: number;
   color: THREE.ColorRepresentation;
   initialAngle?: number;
-  compactness?: number;
+  massRatioToSun?: number;
   useEarthMoonEphemeris?: boolean;
 }
 
@@ -25,7 +31,8 @@ export class Moon extends CelestialBody implements MoonContract {
   private readonly orbitalPeriodDays: number;
   private readonly initialAngle: number;
   private readonly orbitRadius: number;
-  private readonly compactness: number;
+  private readonly gravitationalRadiusScale: number;
+  private readonly massRatioToSun: number;
   private readonly useEarthMoonEphemeris: boolean;
   private readonly orbitPivot = new THREE.Group();
   private readonly mesh: THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial>;
@@ -38,7 +45,7 @@ export class Moon extends CelestialBody implements MoonContract {
     orbitalPeriodDays,
     color,
     initialAngle = 0,
-    compactness = 0.04,
+    massRatioToSun = MASS_RATIO_TO_SUN.moon,
     useEarthMoonEphemeris = false,
   }: MoonOptions) {
     super(name, radius);
@@ -46,7 +53,8 @@ export class Moon extends CelestialBody implements MoonContract {
     this.orbitalPeriodDays = orbitalPeriodDays;
     this.initialAngle = initialAngle;
     this.orbitRadius = orbitRadius;
-    this.compactness = compactness;
+    this.gravitationalRadiusScale = getDisplayGravitationalRadius(massRatioToSun);
+    this.massRatioToSun = massRatioToSun;
     this.useEarthMoonEphemeris = useEarthMoonEphemeris;
 
     this.group.add(this.orbitPivot);
@@ -90,11 +98,10 @@ export class Moon extends CelestialBody implements MoonContract {
     return [
       {
         position: this.position,
-        compactness: this.compactness,
+        gravitationalRadiusScale: this.gravitationalRadiusScale,
         radius: this.radius,
-        softening: Math.max(this.radius * 1.4, 0.12),
-        maxContraction: 0.04,
-        flow: 0.02,
+        softening: getMetricSoftening(this.radius),
+        maxContraction: getMetricMaxContraction(this.massRatioToSun),
       },
     ];
   }

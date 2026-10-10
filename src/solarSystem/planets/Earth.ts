@@ -1,7 +1,12 @@
 import * as THREE from 'three';
 import { Planet } from '../Planet';
 import type { MassSource, PlanetContract } from '../PlanetInterface';
-import { BODIES } from '../constants';
+import {
+  BODIES,
+  getDisplayGravitationalRadius,
+  getMetricMaxContraction,
+  getMetricSoftening,
+} from '../constants';
 import { Moon } from '../moons/Moon';
 
 export class Earth extends Planet implements PlanetContract {
@@ -27,7 +32,6 @@ export class Earth extends Planet implements PlanetContract {
         orbitRadius: 2.9,
         orbitalPeriodDays: 27.32,
         color: 0xb9b7ad,
-        compactness: 0.08,
         useEarthMoonEphemeris: true,
       }),
     );
@@ -40,11 +44,10 @@ export class Earth extends Planet implements PlanetContract {
   getMassSource(): MassSource {
     return {
       position: this.position,
-      compactness: 1.05,
+      gravitationalRadiusScale: getDisplayGravitationalRadius(BODIES.earth.massRatioToSun),
       radius: BODIES.earth.radius,
-      softening: 0.9,
-      maxContraction: 0.22,
-      flow: 0.08,
+      softening: getMetricSoftening(BODIES.earth.radius),
+      maxContraction: getMetricMaxContraction(BODIES.earth.massRatioToSun),
     };
   }
 

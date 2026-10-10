@@ -2,11 +2,14 @@ import type * as THREE from 'three';
 
 export interface MassSource {
   position: THREE.Vector3;
-  compactness: number;
+  /**
+   * Display-scaled gravitational length GM/c^2.
+   * In weak-field GR, solar-system metric deviation is ordered by GM/(c^2 r).
+   */
+  gravitationalRadiusScale: number;
   radius: number;
   softening: number;
   maxContraction?: number;
-  flow?: number;
 }
 
 export interface PlanetContract {

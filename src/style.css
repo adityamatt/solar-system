@@ -120,6 +120,78 @@ input:focus-visible {
   white-space: nowrap;
 }
 
+.telemetry {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  width: min(390px, calc(100vw - 48px));
+  max-height: calc(100svh - 48px);
+  overflow: hidden;
+  padding: 14px;
+  border: 1px solid rgba(149, 191, 227, 0.18);
+  border-radius: 8px;
+  background: rgba(2, 7, 17, 0.58);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+}
+
+.telemetry-label {
+  margin: 0 0 7px;
+  color: rgba(237, 246, 255, 0.62);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+#simulation-time {
+  display: block;
+  color: #f8fbff;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.body-locations {
+  margin-top: 14px;
+}
+
+.location-table {
+  display: grid;
+  gap: 5px;
+  color: rgba(237, 246, 255, 0.78);
+  font-variant-numeric: tabular-nums;
+}
+
+.location-heading,
+.location-row {
+  display: grid;
+  grid-template-columns: minmax(72px, 1fr) repeat(3, minmax(54px, auto));
+  gap: 10px;
+  align-items: baseline;
+}
+
+.location-heading {
+  color: rgba(237, 246, 255, 0.48);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+
+.location-row {
+  font-size: 0.78rem;
+}
+
+.location-heading span:not(:first-child),
+.location-row span:not(:first-child) {
+  text-align: right;
+}
+
+.location-row span:first-child {
+  color: #f8fbff;
+  font-weight: 650;
+}
+
 .eyebrow {
   margin: 0 0 8px;
   color: #8dd7ff;
@@ -182,6 +254,43 @@ dd {
   margin-bottom: 12px;
 }
 
+.slider-row {
+  grid-template-columns: 54px minmax(0, 1fr);
+  align-items: start;
+}
+
+.slider-row > input[type="range"] {
+  align-self: center;
+}
+
+.slider-bounds {
+  grid-column: 2;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.slider-bounds label {
+  display: grid;
+  gap: 4px;
+  color: rgba(237, 246, 255, 0.54);
+  font-size: 0.66rem;
+  text-transform: uppercase;
+}
+
+.slider-bounds input {
+  width: 100%;
+  min-width: 0;
+  color: #f8fbff;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 6px 7px;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+}
+
 input[type="range"] {
   width: 100%;
   accent-color: #8dd7ff;
@@ -227,5 +336,14 @@ select {
   .metrics {
     grid-template-columns: 1fr;
     margin: 14px 0;
+  }
+
+  .telemetry {
+    top: auto;
+    right: 12px;
+    bottom: 12px;
+    left: 12px;
+    width: auto;
+    max-height: 42svh;
   }
 }

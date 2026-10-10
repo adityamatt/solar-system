@@ -10,9 +10,6 @@ export class Jupiter extends SolarPlanet {
       color: 0xc99562,
       secondaryColor: 0xf3dfb8,
       orbitColor: 0xc99562,
-      compactness: 2.45,
-      maxContraction: 0.24,
-      flow: 0.025,
     });
 
     this.addMoon(
@@ -23,7 +20,6 @@ export class Jupiter extends SolarPlanet {
         orbitRadius: 3.2,
         orbitalPeriodDays: 1.769,
         color: 0xd8b651,
-        compactness: 0.08,
       }),
     );
     this.addMoon(
@@ -35,7 +31,6 @@ export class Jupiter extends SolarPlanet {
         orbitalPeriodDays: 3.551,
         color: 0xd9d0bd,
         initialAngle: 0.8,
-        compactness: 0.07,
       }),
     );
     this.addMoon(
@@ -47,7 +42,6 @@ export class Jupiter extends SolarPlanet {
         orbitalPeriodDays: 7.155,
         color: 0xa99a86,
         initialAngle: 1.7,
-        compactness: 0.1,
       }),
     );
     this.addMoon(
@@ -59,7 +53,6 @@ export class Jupiter extends SolarPlanet {
         orbitalPeriodDays: 16.689,
         color: 0x8a7d6c,
         initialAngle: 2.5,
-        compactness: 0.09,
       }),
     );
     this.addMoon(
